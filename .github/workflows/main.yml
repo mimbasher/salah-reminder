@@ -1,5 +1,7 @@
 name: Build APK
 on: [push, workflow_dispatch]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,7 +18,10 @@ jobs:
         run: |
           cd "$(dirname "$(find . -name settings.gradle -not -path './.git/*' | head -1)")"
           gradle assembleDebug
-      - uses: actions/upload-artifact@v4
+          cp "$(find . -name app-debug.apk | head -1)" "$GITHUB_WORKSPACE/SalahReminder.apk"
+      - uses: softprops/action-gh-release@v2
         with:
-          name: SalahReminder-apk
-          path: "**/app/build/outputs/apk/debug/app-debug.apk"
+          tag_name: v1.0.${{ github.run_number }}
+          name: Salah Reminder v1.0.${{ github.run_number }}
+          files: SalahReminder.apk
+          make_latest: true
