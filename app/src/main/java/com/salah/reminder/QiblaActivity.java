@@ -11,10 +11,13 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.view.Display;
 import android.view.Gravity;
+import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
@@ -29,6 +32,7 @@ public class QiblaActivity extends ThemedActivity implements SensorEventListener
     private final float[] accV = new float[3], magV = new float[3];
     private boolean hasAcc, hasMag, wasAligned;
     private float heading = Float.NaN, declination;
+    private int rotation = Surface.ROTATION_0;
     private double qibla;
     private CompassView compass;
     private TextView status, detail, hint;
@@ -67,7 +71,7 @@ public class QiblaActivity extends ThemedActivity implements SensorEventListener
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(dp(10), dp(8), dp(10), 0);
         root.addView(hint, Ui.lp(-1, -2));
-        setContentView(root);
+        setContentView(Ui.centred(this, root));
 
         if (!Scheduler.hasLocation(this)) {
             status.setText("Set your location first");
@@ -100,6 +104,7 @@ public class QiblaActivity extends ThemedActivity implements SensorEventListener
     @Override
     protected void onResume() {
         super.onResume();
+        rotation = displayRotation();
         if (sm == null) return;
         if (rot != null) sm.registerListener(this, rot, SensorManager.SENSOR_DELAY_UI);
         else if (acc != null && mag != null) {
@@ -129,7 +134,7 @@ public class QiblaActivity extends ThemedActivity implements SensorEventListener
             }
             if (!hasAcc || !hasMag || !SensorManager.getRotationMatrix(r, null, accV, magV)) return;
         }
-        SensorManager.getOrientation(r, o);
+        SensorManager.getOrientation(upright(r), o);
         float h = (float) ((Math.toDegrees(o[0]) + declination + 360) % 360);
         if (Float.isNaN(heading)) heading = h;
         else {
@@ -149,6 +154,44 @@ public class QiblaActivity extends ThemedActivity implements SensorEventListener
         status.setTextColor(aligned ? Ui.ACCENT : Ui.TEXT);
         if (aligned && !wasAligned) buzz();
         wasAligned = aligned;
+    }
+
+    /**
+     * The rotation matrix is expressed in the device's natural orientation, which is landscape
+     * on most tablets and on a foldable's inner screen. Without this the heading is out by a
+     * right angle there — and a Qibla that is 90° wrong is worse than no Qibla at all.
+     */
+    private float[] upright(float[] r) {
+        float[] out = new float[9];
+        switch (rotation) {
+            case Surface.ROTATION_90:
+                SensorManager.remapCoordinateSystem(r, SensorManager.AXIS_Y,
+                        SensorManager.AXIS_MINUS_X, out);
+                return out;
+            case Surface.ROTATION_180:
+                SensorManager.remapCoordinateSystem(r, SensorManager.AXIS_MINUS_X,
+                        SensorManager.AXIS_MINUS_Y, out);
+                return out;
+            case Surface.ROTATION_270:
+                SensorManager.remapCoordinateSystem(r, SensorManager.AXIS_MINUS_Y,
+                        SensorManager.AXIS_X, out);
+                return out;
+            default:
+                return r;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private int displayRotation() {
+        try {
+            if (Build.VERSION.SDK_INT >= 30) {
+                Display d = getDisplay();
+                if (d != null) return d.getRotation();
+            }
+            return getWindowManager().getDefaultDisplay().getRotation();
+        } catch (Exception e) {
+            return Surface.ROTATION_0;
+        }
     }
 
     private void buzz() {

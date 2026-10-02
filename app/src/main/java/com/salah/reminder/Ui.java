@@ -10,6 +10,7 @@ import android.graphics.drawable.RippleDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -191,6 +192,31 @@ final class Ui {
 
     static LinearLayout.LayoutParams lp(int w, int h, float weight) {
         return new LinearLayout.LayoutParams(w, h, weight);
+    }
+
+    /** The widest a column of content gets. Past this a screen centres it instead of stretching. */
+    static final float MAX_CONTENT_DP = 480;
+
+    /**
+     * Params for the single child of a full-screen container: the whole width on a phone, a
+     * centred column on a tablet or an unfolded foldable, where edge-to-edge rows would leave
+     * the glyph and the time at opposite ends of the screen.
+     */
+    static FrameLayout.LayoutParams contentLp(Context c, int height) {
+        int max = dp(c, MAX_CONTENT_DP);
+        boolean wide = c.getResources().getDisplayMetrics().widthPixels > max;
+        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
+                wide ? max : FrameLayout.LayoutParams.MATCH_PARENT, height);
+        p.gravity = Gravity.CENTER_HORIZONTAL;
+        return p;
+    }
+
+    /** Wraps a screen whose root is set directly, so it is centred on a wide display too. */
+    static FrameLayout centred(Context c, View content) {
+        FrameLayout host = new FrameLayout(c);
+        host.setBackgroundColor(BG);
+        host.addView(content, contentLp(c, -1));
+        return host;
     }
 
     static LinearLayout.LayoutParams stacked(Context c, float topDp) {

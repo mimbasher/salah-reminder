@@ -95,7 +95,7 @@ public class MainActivity extends ThemedActivity {
         sv.setFillViewport(true);
         LinearLayout root = Ui.column(this);
         root.setPadding(dp(18), dp(16), dp(18), dp(28));
-        sv.addView(root, Ui.lp(-1, -1));
+        sv.addView(root, Ui.contentLp(this, -1));
         setContentView(sv);
 
         // header

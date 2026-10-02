@@ -75,7 +75,7 @@ public class SettingsActivity extends ThemedActivity {
         sv.setBackgroundColor(Ui.BG);
         LinearLayout root = Ui.column(this);
         root.setPadding(dp(18), dp(16), dp(18), dp(36));
-        sv.addView(root, Ui.lp(-1, -2));
+        sv.addView(root, Ui.contentLp(this, -2));
         setContentView(sv);
 
         LinearLayout head = Ui.rowOf(this);

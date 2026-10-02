@@ -29,6 +29,7 @@ import java.util.Map;
 /** Pick a city from the bundled list: tap a country, then a city. No typing, no internet. */
 public class CityPickerActivity extends ThemedActivity {
     static final String EX_NAME = "name", EX_LAT = "lat", EX_LNG = "lng";
+    private static final String ST_COUNTRY = "country", ST_QUERY = "query";
 
     /** The whole list, parsed once and kept for as long as the process lives. */
     private static String[] cc, names, regions, lowerNames;
@@ -50,6 +51,10 @@ public class CityPickerActivity extends ThemedActivity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        // Folding or unfolding a phone rebuilds the screen; without this you would land back
+        // on the country list, having lost the country and whatever you had typed.
+        String query = b == null ? "" : b.getString(ST_QUERY, "");
+        if (b != null) country = b.getString(ST_COUNTRY);
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
         root.setPadding(dp(18), dp(16), dp(18), 0);
@@ -84,10 +89,18 @@ public class CityPickerActivity extends ThemedActivity {
         list.setOnItemClickListener((p, v, pos, id) -> tapped(rows.get(pos)));
         root.addView(list, Ui.lp(-1, 0, 1));
 
-        setContentView(root);
+        setContentView(Ui.centred(this, root));
 
+        if (!query.isEmpty()) search.setText(query);
         if (names == null) new Thread(this::load).start();
         else rebuild();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle b) {
+        super.onSaveInstanceState(b);
+        b.putString(ST_COUNTRY, country);
+        b.putString(ST_QUERY, search.getText().toString());
     }
 
     private int dp(float v) { return Ui.dp(this, v); }
