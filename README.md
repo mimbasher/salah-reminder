@@ -6,6 +6,16 @@ confirm you've prayed.
 
 **[⬇ Download the latest APK](../../releases/latest/download/SalahReminder.apk)**
 
+## What it looks like
+
+| Home (dark) | Home (light) | Settings | Qibla |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/screenshots/home-dark.png" width="200" alt="Home screen in the dark theme: next prayer with a countdown ring, today's five times"> | <img src="docs/screenshots/home-light.png" width="200" alt="The same home screen in the light theme"> | <img src="docs/screenshots/settings.png" width="200" alt="Settings: location, calculation method, Asr school and adhan sound"> | <img src="docs/screenshots/qibla.png" width="200" alt="Qibla compass showing turn right 156 degrees"> |
+
+And the reminder that stays in the notification panel until you confirm:
+
+<img src="docs/screenshots/reminder.png" width="420" alt="Pinned notification reading 'It is time for Asr' with a tick-Prayed button">
+
 ## What it does
 
 - **Prayer times on your phone** — computed from the sun's position, no internet needed
@@ -16,8 +26,13 @@ confirm you've prayed.
 - **Heads-up before the adhan** — "Asr in 10 min", with the minutes you choose (or off).
 - **A reminder you can't swipe away** — the card stays until you tap **✓ Prayed**, and
   comes straight back if your phone dismisses it.
+- **Confirm it in the app too** — tap the **✓** beside any prayer that has already passed,
+  even if you never saw the notification. Tap it again to undo a mis-tap.
 - **Repeat nagging** — it reminds you again every few minutes until you confirm.
 - **Qibla compass** — "turn left / turn right", turning green and buzzing when you're facing Makkah.
+- **Works at any latitude** — where the sun doesn't rise or set at all, it takes the timetable
+  of the nearest day that does have a real sunrise and sunset (*aqrab al-ayyam*), so the Arctic
+  gets sane times instead of midnight.
 - **Qiyam al-Layl** — an optional night-prayer reminder at the last third of the night, the
   middle of the night, or however long before Fajr you choose.
 - **Dhuha** — an optional forenoon reminder, a set time after sunrise or at mid-morning.
@@ -30,8 +45,9 @@ confirm you've prayed.
 ## The screens
 
 **Home** — the next prayer with a live countdown ring, today's five times with their state
-(upcoming, waiting for you, prayed), the Gregorian and Hijri date, and a warning banner if
-anything on your phone could delay the adhan.
+(upcoming, waiting for you, passed, prayed), the Gregorian and Hijri date, and a warning banner
+if anything on your phone could delay the adhan. Each passed prayer carries a **✓** you can tap
+to confirm you prayed it, and tap again to undo.
 
 **Choose your city** — a country list, then the cities in it, biggest first. A filter box is
 there if you would rather type.
@@ -114,7 +130,11 @@ With your own SDK already installed, plain Gradle works as well:
 ```sh
 echo "sdk.dir=/path/to/android-sdk" > local.properties
 gradle assembleDebug
+gradle testDebugUnitTest   # PrayerCalc's unit tests, also run on every CI build
 ```
+
+There is no Gradle wrapper on purpose: CI pins Gradle 8.9 and `scripts/dev.sh` fetches its own
+8.9 plus a JDK 17, so a committed `gradlew` would only add a third version to disagree with.
 
 No third-party libraries — the whole app is the Android framework plus the files in
 `app/src/main/java/com/salah/reminder/`:
@@ -133,6 +153,11 @@ No third-party libraries — the whole app is the Android framework plus the fil
 | `CityPickerActivity` | the bundled city list |
 | `Updater` | checks GitHub releases, downloads and installs |
 | `HijriDate` | Hijri date from the platform calendar |
+
+Tests live in `app/src/test/` and cover `PrayerCalc`: prayer-time ordering, Dhuhr at solar noon,
+Umm al-Qura's fixed 90-minute Isha, a later Hanafi Asr, daylight-saving handling, Qibla bearings
+checked against exact geometry, and every month at Tromsø, Longyearbyen, Alert and McMurdo so the
+polar fallbacks keep working.
 
 City data: [GeoNames](https://www.geonames.org/) (`cities15000`, places over 15,000 people),
 licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), bundled as
