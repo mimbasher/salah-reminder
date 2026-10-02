@@ -1,9 +1,17 @@
 name: Build APK
 
-on: [push, workflow_dispatch]
+# Branch pushes only — pushing or moving a tag must not kick off another release build.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
 
 jobs:
   build:
