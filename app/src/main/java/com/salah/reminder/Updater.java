@@ -174,6 +174,38 @@ final class Updater {
         c.getSystemService(NotificationManager.class).notify(Scheduler.NID_UPDATE, n);
     }
 
+    /** The APK has finished downloading: offer to install it there and then. */
+    static void onDownloadFinished(Context c, long id) {
+        Uri uri = finishedDownload(c);
+        if (uri == null || available(c) == null) return;
+
+        // This notice stands in for the prompt Updater.resume() would raise, so the installer
+        // doesn't also pop up unasked the next time the app is opened.
+        Scheduler.prefs(c).edit().putLong("upd_prompted", id).apply();
+
+        Scheduler.ensureChannels(c);
+        PendingIntent pi = PendingIntent.getActivity(c, 840, installerIntent(uri),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification n = new Notification.Builder(c, Scheduler.CH_UPDATE)
+                .setSmallIcon(R.drawable.ic_notif)
+                .setContentTitle("Salah Reminder " + available(c) + " is ready")
+                .setContentText("Tap to install it")
+                .setColor(Scheduler.ACCENT)
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .setCategory(Notification.CATEGORY_RECOMMENDATION)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .build();
+        // Replaces the "is out" notice: one line about the update at a time.
+        c.getSystemService(NotificationManager.class).notify(Scheduler.NID_UPDATE, n);
+    }
+
+    private static Intent installerIntent(Uri uri) {
+        return new Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+    }
+
     static void clearNotice(Context c) {
         c.getSystemService(NotificationManager.class).cancel(Scheduler.NID_UPDATE);
     }
@@ -228,8 +260,9 @@ final class Updater {
                     .setTitle("Salah Reminder " + Scheduler.prefs(a).getString("upd_tag", ""))
                     .setDescription("Downloading the update")
                     .setMimeType("application/vnd.android.package-archive")
-                    .setNotificationVisibility(
-                            DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    // Progress only: the "ready to install" notice below replaces the download
+                    // manager's own completion line, which says nothing you can act on.
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
                     .setDestinationInExternalFilesDir(a, null, FILE);
             long id = dm.enqueue(r);
             Scheduler.prefs(a).edit().putLong("upd_download", id).apply();
@@ -288,9 +321,7 @@ final class Updater {
 
     private static void openInstaller(Activity a, Uri uri) {
         try {
-            a.startActivity(new Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK));
+            a.startActivity(installerIntent(uri));
         } catch (Exception e) {
             toast(a, "Open the downloaded APK from your Files app to install it");
         }
