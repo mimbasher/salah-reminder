@@ -28,8 +28,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.0.${{ github.run_number }}
-          name: Salah Reminder v2.0.${{ github.run_number }}
+          tag_name: v2.1.${{ github.run_number }}
+          name: Salah Reminder v2.1.${{ github.run_number }}
           files: SalahReminder.apk
           make_latest: true
           body: |

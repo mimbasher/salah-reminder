@@ -8,3 +8,6 @@ build/
 local.properties
 .idea/
 *.iml
+
+# Local toolchain fetched by scripts/dev.sh
+.toolchain/

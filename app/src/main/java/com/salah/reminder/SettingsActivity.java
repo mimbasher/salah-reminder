@@ -41,7 +41,7 @@ import java.util.Locale;
 
 /** Everything configurable, grouped and saved the moment you change it. */
 public class SettingsActivity extends Activity {
-    private static final int RQ_LOC = 2, RQ_AUDIO = 3;
+    private static final int RQ_LOC = 2, RQ_AUDIO = 3, RQ_CITY = 4;
     private static final int[] PRE_CHOICES = {0, 5, 10, 15, 20, 30, 45};
     private static final int[] NAG_CHOICES = {5, 10, 15, 20, 30, 60};
 
@@ -92,21 +92,28 @@ public class SettingsActivity extends Activity {
         placeView = Ui.text(this, "", 15, Ui.TEXT, Ui.MEDIUM);
         loc.addView(placeView);
 
+        loc.addView(Ui.primary(this, "🌍  Choose your city",
+                v -> startActivityForResult(new Intent(this, CityPickerActivity.class), RQ_CITY)),
+                Ui.stacked(this, 14));
+        loc.addView(Ui.secondary(this, "📍  Use my current location",
+                v -> askLocation()), Ui.stacked(this, 10));
+
+        loc.addView(Ui.divider(this));
+        TextView advLabel = Ui.text(this, "If your town is not in the list", 12.5f, Ui.MUTED, null);
+        advLabel.setPadding(0, dp(6), 0, dp(8));
+        loc.addView(advLabel);
+
         LinearLayout search = Ui.rowOf(this);
-        cityE = Ui.input(this, "City, e.g. Cairo or London");
+        cityE = Ui.input(this, "Search online by name");
         search.addView(cityE, Ui.lp(0, -2, 1));
         TextView go = Ui.secondary(this, "Search", v -> searchCity());
         LinearLayout.LayoutParams gp = Ui.lp(-2, -2);
         gp.leftMargin = dp(8);
         search.addView(go, gp);
-        loc.addView(search, Ui.stacked(this, 14));
+        loc.addView(search, Ui.lp(-1, -2));
 
-        loc.addView(Ui.secondary(this, "📍  Use my current location",
-                v -> askLocation()), Ui.stacked(this, 10));
-
-        loc.addView(Ui.divider(this));
-        TextView coordLabel = Ui.text(this, "Or type coordinates", 12.5f, Ui.MUTED, null);
-        coordLabel.setPadding(0, dp(6), 0, dp(8));
+        TextView coordLabel = Ui.text(this, "Or exact coordinates", 12.5f, Ui.MUTED, null);
+        coordLabel.setPadding(0, dp(14), 0, dp(8));
         loc.addView(coordLabel);
         int signedDec = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
                 | InputType.TYPE_NUMBER_FLAG_SIGNED;
@@ -474,6 +481,14 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onActivityResult(int rq, int res, Intent data) {
         super.onActivityResult(rq, res, data);
+        if (rq == RQ_CITY) {
+            if (res == RESULT_OK && data != null) {
+                setPlace(data.getStringExtra(CityPickerActivity.EX_NAME),
+                        data.getDoubleExtra(CityPickerActivity.EX_LAT, 0),
+                        data.getDoubleExtra(CityPickerActivity.EX_LNG, 0));
+            }
+            return;
+        }
         if (rq != RQ_AUDIO || res != RESULT_OK || data == null || data.getData() == null) return;
         Uri u = data.getData();
         try {

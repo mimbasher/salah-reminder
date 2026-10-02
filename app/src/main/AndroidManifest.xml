@@ -34,6 +34,11 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity android:name=".CityPickerActivity" android:label="Choose your city"
+            android:exported="false" android:parentActivityName=".SettingsActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity android:name=".QiblaActivity" android:label="Qibla" android:exported="false"
             android:screenOrientation="portrait" />
 

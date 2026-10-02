@@ -9,7 +9,9 @@ confirm you've prayed.
 ## What it does
 
 - **Prayer times on your phone** — computed from the sun's position, no internet needed
-  once your location is set. Pick your city by name, use GPS, or type coordinates.
+  once your location is set.
+- **Pick your city from a list** — 34,000 cities are bundled with the app. Tap your country,
+  tap your city, done. No typing and no internet; GPS and coordinates still work too.
 - **Your own adhan** — choose any audio file; it plays at the phone's *alarm* volume.
 - **Heads-up before the adhan** — "Asr in 10 min", with the minutes you choose (or off).
 - **A reminder you can't swipe away** — the card stays until you tap **✓ Prayed**, and
@@ -23,6 +25,9 @@ confirm you've prayed.
 **Home** — the next prayer with a live countdown ring, today's five times with their state
 (upcoming, waiting for you, prayed), the Gregorian and Hijri date, and a warning banner if
 anything on your phone could delay the adhan.
+
+**Choose your city** — a country list, then the cities in it, biggest first. A filter box is
+there if you would rather type.
 
 **Settings** — location, calculation method, Asr school, adhan sound, reminder timings, and
 the reliability switches. Everything saves the moment you change it; there is no Save button.
@@ -51,13 +56,27 @@ gives you the newest version.
 You don't need to leave the app running. Android wakes it at each prayer time; between
 times it does nothing and uses no battery.
 
-## Building it yourself
+## Running it locally (no Android Studio)
 
-Needs JDK 17 and the Android SDK (platform 34, build-tools 34.0.0):
+`scripts/dev.sh` fetches its own JDK 17, Gradle and Android SDK into `.toolchain/`
+(git-ignored, nothing installed system-wide) and installs straight onto a plugged-in phone:
+
+```sh
+./scripts/dev.sh setup      # one-off, ~450 MB
+./scripts/dev.sh build      # -> app/build/outputs/apk/debug/app-debug.apk
+./scripts/dev.sh install    # build + install + launch on the connected phone
+./scripts/dev.sh logs       # follow the app's logcat
+```
+
+For `install`, turn on **Developer options → USB debugging** on the phone and tap *Allow*
+when it asks. For wireless, use **Wireless debugging** and
+`.toolchain/sdk/platform-tools/adb pair <ip>:<port>`.
+
+With your own SDK already installed, plain Gradle works as well:
 
 ```sh
 echo "sdk.dir=/path/to/android-sdk" > local.properties
-gradle assembleDebug          # -> app/build/outputs/apk/debug/app-debug.apk
+gradle assembleDebug
 ```
 
 No third-party libraries — the whole app is the Android framework plus the files in
@@ -73,4 +92,9 @@ No third-party libraries — the whole app is the Android framework plus the fil
 | `Scheduler` | alarms, state and notifications |
 | `AdhanService` | plays the adhan |
 | `AlarmReceiver` / `BootReceiver` | alarm delivery and restoring after reboot |
+| `CityPickerActivity` | the bundled city list |
 | `HijriDate` | Hijri date from the platform calendar |
+
+City data: [GeoNames](https://www.geonames.org/) (`cities15000`, places over 15,000 people),
+licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), bundled as
+`app/src/main/assets/cities.txt`.
