@@ -18,6 +18,9 @@ confirm you've prayed.
   comes straight back if your phone dismisses it.
 - **Repeat nagging** — it reminds you again every few minutes until you confirm.
 - **Qibla compass** — "turn left / turn right", turning green and buzzing when you're facing Makkah.
+- **Updates itself** — it checks GitHub for a newer build, shows a banner on the home screen,
+  and installs it when you tap. No store, no sideloading dance.
+- **Follows your system theme** — light or dark, whichever your phone is set to.
 - **Survives** reboots, app updates, and time-zone changes.
 
 ## The screens
@@ -39,8 +42,12 @@ the reliability switches. Everything saves the moment you change it; there is no
 1. Open the download link above on your phone and tap the APK.
 2. Allow "Install unknown apps" for your browser when Android asks.
 
-Every push to `main` builds a fresh APK and publishes it as a release, so that link always
-gives you the newest version.
+After that first install, the app updates itself: it checks for new releases, shows
+**"Version x.y.z is available"** on the home screen, and tapping it downloads and installs.
+There is also **Settings → App → Check for updates now**.
+
+Every push to `main` builds a signed APK and publishes it as a release, so the download link
+always gives the newest version.
 
 ## First-time setup
 
@@ -55,6 +62,26 @@ gives you the newest version.
 
 You don't need to leave the app running. Android wakes it at each prayer time; between
 times it does nothing and uses no battery.
+
+## Signing
+
+Builds are signed with a fixed key held in GitHub Actions secrets (`KEYSTORE_B64`,
+`KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), so each release installs as an update over
+the last one. Without that the key would differ every build and Android would reject the
+update as a signature mismatch.
+
+For local builds, put the same key in `keystore.jks` with a `keystore.properties` beside it:
+
+```
+storeFile=keystore.jks
+storePassword=...
+keyAlias=salah
+keyPassword=...
+```
+
+Both files are git-ignored and must stay that way. With no keystore present the build still
+works — it falls back to a throwaway debug key, which is fine for trying things out but will
+not install over a release build.
 
 ## Running it locally (no Android Studio)
 
@@ -93,6 +120,7 @@ No third-party libraries — the whole app is the Android framework plus the fil
 | `AdhanService` | plays the adhan |
 | `AlarmReceiver` / `BootReceiver` | alarm delivery and restoring after reboot |
 | `CityPickerActivity` | the bundled city list |
+| `Updater` | checks GitHub releases, downloads and installs |
 | `HijriDate` | Hijri date from the platform calendar |
 
 City data: [GeoNames](https://www.geonames.org/) (`cities15000`, places over 15,000 people),

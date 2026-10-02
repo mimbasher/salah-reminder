@@ -36,6 +36,7 @@ public class QiblaActivity extends Activity implements SensorEventListener {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Ui.apply(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         LinearLayout root = Ui.column(this);
@@ -219,7 +220,7 @@ public class QiblaActivity extends Activity implements SensorEventListener {
                 float len = major ? r * 0.12f : r * 0.055f;
                 p.setStrokeWidth(major ? r * 0.016f : r * 0.008f);
                 p.setStyle(Paint.Style.STROKE);
-                p.setColor(major ? 0xFF6B7C93 : 0xFF3A4759);
+                p.setColor(major ? Ui.MUTED : Ui.LINE);
                 c.drawLine(cx, cy - r * 0.9f, cx, cy - r * 0.9f + len, p);
                 c.rotate(6, cx, cy);
             }

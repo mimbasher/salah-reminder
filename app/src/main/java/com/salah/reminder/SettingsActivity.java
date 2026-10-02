@@ -47,7 +47,7 @@ public class SettingsActivity extends Activity {
 
     private interface Pick { void on(int value); }
 
-    private TextView placeView, soundView;
+    private TextView placeView, soundView, updateStatus, updateButton;
     private EditText cityE, latE, lngE;
     private Spinner methodS, asrS;
     private Switch adhanSw;
@@ -56,6 +56,7 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Ui.apply(this);
         buildUi();
     }
 
@@ -224,6 +225,24 @@ public class SettingsActivity extends Activity {
                 Ui.stacked(this, 14));
         root.addView(rel, Ui.lp(-1, -2));
 
+        // ---- app & updates ----
+        root.addView(Ui.sectionTitle(this, "App"));
+        LinearLayout app = Ui.card(this);
+        app.addView(Ui.text(this, "Version " + Updater.installedVersion(this), 15, Ui.TEXT, Ui.MEDIUM),
+                Ui.lp(-1, -2));
+        updateStatus = Ui.text(this, "Checked automatically when you open the app",
+                12.5f, Ui.MUTED, null);
+        updateStatus.setPadding(0, dp(6), 0, 0);
+        app.addView(updateStatus, Ui.lp(-1, -2));
+        app.addView(Ui.secondary(this, "Check for updates now", v -> checkUpdate()),
+                Ui.stacked(this, 12));
+        updateButton = Ui.primary(this, "Download and install", v -> Updater.install(this));
+        updateButton.setVisibility(View.GONE);
+        app.addView(updateButton, Ui.stacked(this, 10));
+        app.addView(Ui.secondary(this, "Open the releases page",
+                v -> Updater.openReleasesPage(this)), Ui.stacked(this, 10));
+        root.addView(app, Ui.lp(-1, -2));
+
         TextView about = Ui.text(this,
                 "Times are computed on your phone from the sun's position — no internet needed "
                         + "once your location is set.", 11.5f, Ui.MUTED, null);
@@ -295,6 +314,9 @@ public class SettingsActivity extends Activity {
 
     private void refresh() {
         SharedPreferences p = prefs();
+        showUpdateButton();
+        String ready = Updater.available(this);
+        if (ready != null) updateStatus.setText("Version " + ready + " is ready to install");
         placeView.setText(Scheduler.hasLocation(this)
                 ? "📍  " + p.getString("place", "Custom location")
                 + String.format(Locale.US, "  (%.3f, %.3f)", Scheduler.lat(this), Scheduler.lng(this))
@@ -311,6 +333,21 @@ public class SettingsActivity extends Activity {
             toast("Repeating every " + v + " min");
             refresh();
         });
+    }
+
+    private void checkUpdate() {
+        updateStatus.setText("Checking…");
+        Updater.check(this, true, (version, error) -> {
+            if (error != null) updateStatus.setText(error);
+            else if (version != null) updateStatus.setText("Version " + version + " is ready to install");
+            else updateStatus.setText("You are on the latest version");
+            showUpdateButton();
+        });
+    }
+
+    private void showUpdateButton() {
+        String version = Updater.available(this);
+        updateButton.setVisibility(version == null ? View.GONE : View.VISIBLE);
     }
 
     private void reschedule(String msg) {
@@ -390,7 +427,8 @@ public class SettingsActivity extends Activity {
             String region = a.getAdminArea() != null ? " (" + a.getAdminArea() + ")" : "";
             names[k] = placeName(a) + region;
         }
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, Ui.dark ? android.R.style.Theme_Material_Dialog_Alert
+                : android.R.style.Theme_Material_Light_Dialog_Alert)
                 .setTitle("Which one?")
                 .setItems(names, (d, w) -> {
                     Address a = ok.get(w);

@@ -1,6 +1,7 @@
 package com.salah.reminder;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -15,22 +16,52 @@ import android.widget.TextView;
 
 /** The app's small design system: one place for colour, type, spacing and the common views. */
 final class Ui {
-    static final int BG        = 0xFF070D16;
-    static final int SURFACE   = 0xFF121B29;
-    static final int SURFACE_2 = 0xFF1B2636;
-    static final int LINE      = 0xFF26354A;
-    static final int TEXT      = 0xFFEEF3F9;
-    static final int MUTED     = 0xFF8798AE;
-    static final int ACCENT    = 0xFF34D8A5;
-    static final int GOLD      = 0xFFF2C879;
-    static final int AMBER     = 0xFFFFB454;
-    static final int HERO_A    = 0xFF0E6650;
-    static final int HERO_B    = 0xFF123F62;
-    static final int ON_HERO   = 0xFFFFFFFF;
+    /** True while the phone is in dark mode; the palette below follows it. */
+    static boolean dark = true;
+
+    static int BG, SURFACE, SURFACE_2, LINE, TEXT, MUTED;
+    static int ACCENT, ACCENT_A, ACCENT_B, ON_ACCENT;
+    static int GOLD, AMBER, WARN_TEXT, RIPPLE;
+
+    /** The hero card keeps its deep green in both themes; white text sits on it either way. */
+    static final int HERO_A = 0xFF0E6650;
+    static final int HERO_B = 0xFF123F62;
+    static final int ON_HERO = 0xFFFFFFFF;
     static final int ON_HERO_2 = 0xB3FFFFFF;
 
     static final Typeface LIGHT  = Typeface.create("sans-serif-light", Typeface.NORMAL);
     static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+
+    static { palette(true); }
+
+    /**
+     * Reads the system's light/dark setting and switches the palette. Every activity calls this
+     * first thing in onCreate; Android recreates activities when the setting changes, so the
+     * colours always match what the phone is showing.
+     */
+    static void apply(Context c) {
+        palette((c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES);
+    }
+
+    private static void palette(boolean night) {
+        dark = night;
+        if (night) {
+            BG = 0xFF070D16;  SURFACE = 0xFF121B29;  SURFACE_2 = 0xFF1B2636;
+            LINE = 0xFF26354A; TEXT = 0xFFEEF3F9;    MUTED = 0xFF8798AE;
+            ACCENT = 0xFF34D8A5; ACCENT_A = 0xFF3FE3AE; ACCENT_B = 0xFF22B98A;
+            ON_ACCENT = 0xFF04231B;
+            GOLD = 0xFFF2C879; AMBER = 0xFFFFB454; WARN_TEXT = 0xFFFFD79A;
+            RIPPLE = 0x40FFFFFF;
+        } else {
+            BG = 0xFFF4F6F9;  SURFACE = 0xFFFFFFFF;  SURFACE_2 = 0xFFEDF1F6;
+            LINE = 0xFFDCE3EB; TEXT = 0xFF101B28;    MUTED = 0xFF5B6B7D;
+            ACCENT = 0xFF0C7B5B; ACCENT_A = 0xFF13A378; ACCENT_B = 0xFF0A6E51;
+            ON_ACCENT = 0xFFFFFFFF;
+            GOLD = 0xFFAE7612; AMBER = 0xFFB4690A; WARN_TEXT = 0xFF8A4F00;
+            RIPPLE = 0x1F000000;
+        }
+    }
 
     private Ui() { }
 
@@ -71,7 +102,7 @@ final class Ui {
 
     /** Wraps a background so taps show a ripple. */
     static Drawable tappable(Drawable bg) {
-        return new RippleDrawable(ColorStateList.valueOf(0x40FFFFFF), bg, null);
+        return new RippleDrawable(ColorStateList.valueOf(RIPPLE), bg, null);
     }
 
     static void clickable(View v, Drawable bg, View.OnClickListener l) {
@@ -162,10 +193,10 @@ final class Ui {
 
     /** Solid accent-gradient call to action. */
     static TextView primary(Context c, String label, View.OnClickListener l) {
-        TextView t = text(c, label, 16, 0xFF04231B, MEDIUM);
+        TextView t = text(c, label, 16, ON_ACCENT, MEDIUM);
         t.setGravity(Gravity.CENTER);
         t.setPadding(dp(c, 18), dp(c, 15), dp(c, 18), dp(c, 15));
-        clickable(t, gradient(c, 0xFF3FE3AE, 0xFF22B98A, 16), l);
+        clickable(t, gradient(c, ACCENT_A, ACCENT_B, 16), l);
         return t;
     }
 
@@ -202,7 +233,7 @@ final class Ui {
 
     /** A selectable pill, used for the minute pickers. */
     static TextView chip(Context c, String label, boolean on, View.OnClickListener l) {
-        TextView t = text(c, label, 14, on ? 0xFF04231B : TEXT, MEDIUM);
+        TextView t = text(c, label, 14, on ? ON_ACCENT : TEXT, MEDIUM);
         t.setGravity(Gravity.CENTER);
         t.setPadding(dp(c, 16), dp(c, 10), dp(c, 16), dp(c, 10));
         clickable(t, on ? round(ACCENT, c, 22) : outlined(SURFACE_2, LINE, c, 22), l);

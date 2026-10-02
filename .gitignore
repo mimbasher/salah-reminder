@@ -11,3 +11,7 @@ local.properties
 
 # Local toolchain fetched by scripts/dev.sh
 .toolchain/
+
+# Signing material — must never be committed
+keystore.jks
+keystore.properties

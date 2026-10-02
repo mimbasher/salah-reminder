@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Light theme. The dark variant lives in values-night/. -->
 <resources>
-    <color name="bg">#FF070D16</color>
-    <color name="surface">#FF121B29</color>
-    <color name="text">#FFEEF3F9</color>
-    <color name="muted">#FF8798AE</color>
-    <color name="accent">#FF34D8A5</color>
-    <color name="hero">#FF0D5C47</color>
+    <color name="bg">#FFF4F6F9</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="text">#FF101B28</color>
+    <color name="muted">#FF5B6B7D</color>
+    <color name="accent">#FF0C7B5B</color>
+    <color name="hero">#FF0E6650</color>
 </resources>

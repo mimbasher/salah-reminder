@@ -37,8 +37,8 @@ public class MainActivity extends Activity {
 
     private TextView dateView, placeView, heroName, heroTime, heroLabel;
     private RingView ring;
-    private LinearLayout listCard, warnCard;
-    private TextView warnText, footer;
+    private LinearLayout listCard, warnCard, updateCard;
+    private TextView warnText, footer, updateText;
     private View heroAction;
 
     /** What the screen currently shows; while it is unchanged only the countdown is redrawn. */
@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Ui.apply(this);
         Scheduler.ensureChannels(this);
         buildUi();
         if (Build.VERSION.SDK_INT >= 33
@@ -68,6 +69,11 @@ public class MainActivity extends Activity {
         super.onResume();
         shown = "";
         paint();
+        Updater.resume(this);                       // an update downloaded while we were away
+        Updater.check(this, false, (version, error) -> {
+            shown = "";
+            paint();
+        });
         tick.removeCallbacks(ticker);
         tick.postDelayed(ticker, 1000);
     }
@@ -129,11 +135,25 @@ public class MainActivity extends Activity {
         hero.addView(heroAction, Ui.stacked(this, 14));
         root.addView(hero, Ui.stacked(this, 18));
 
+        // "an update is ready" banner
+        updateCard = Ui.column(this);
+        updateCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+        updateText = Ui.text(this, "", 13.5f, Ui.ACCENT, Ui.MEDIUM);
+        updateCard.addView(updateText, Ui.lp(-1, -2));
+        TextView updateHint = Ui.text(this, "Tap to download and install it", 12, Ui.MUTED, null);
+        updateHint.setPadding(0, dp(3), 0, 0);
+        updateCard.addView(updateHint, Ui.lp(-1, -2));
+        updateCard.setVisibility(View.GONE);
+        Ui.clickable(updateCard,
+                Ui.outlined(Ui.alpha(Ui.ACCENT, 0x1F), Ui.alpha(Ui.ACCENT, 0x66), this, 16),
+                v -> Updater.install(this));
+        root.addView(updateCard, Ui.stacked(this, 12));
+
         // reliability warning (hidden unless something is actually wrong)
         warnCard = Ui.column(this);
         warnCard.setBackground(Ui.outlined(Ui.alpha(Ui.AMBER, 0x1F), Ui.alpha(Ui.AMBER, 0x66), this, 16));
         warnCard.setPadding(dp(14), dp(12), dp(14), dp(12));
-        warnText = Ui.text(this, "", 13, 0xFFFFD79A, null);
+        warnText = Ui.text(this, "", 13, Ui.WARN_TEXT, null);
         warnCard.addView(warnText);
         warnCard.setVisibility(View.GONE);
         root.addView(warnCard, Ui.stacked(this, 12));
@@ -202,6 +222,7 @@ public class MainActivity extends Activity {
 
         paintList(now, ni, nt);
         paintWarning();
+        paintUpdate();
 
         String[] madhab = {"Standard Asr", "Hanafi Asr"};
         int mi = Math.min(Math.max(0, p.getInt("method", 0)), PrayerCalc.METHODS.length - 1);
@@ -221,6 +242,13 @@ public class MainActivity extends Activity {
         listCard.addView(hint("Prayer times appear here once your location is set."));
         warnCard.setVisibility(View.GONE);
         footer.setText("");
+        paintUpdate();
+    }
+
+    private void paintUpdate() {
+        String version = Updater.available(this);
+        updateCard.setVisibility(version == null ? View.GONE : View.VISIBLE);
+        if (version != null) updateText.setText("Version " + version + " is available");
     }
 
     /** Changes whenever a prayer is marked prayed or a new card appears. */
@@ -258,7 +286,7 @@ public class MainActivity extends Activity {
 
             int bubble = pending ? Ui.alpha(Ui.AMBER, 0x33)
                     : done ? Ui.alpha(Ui.ACCENT, 0x2B)
-                    : isNext ? Ui.alpha(Ui.ACCENT, 0x24) : 0xFF1A2432;
+                    : isNext ? Ui.alpha(Ui.ACCENT, 0x24) : Ui.SURFACE_2;
             row.addView(Ui.badge(this, GLYPHS[i], bubble, Ui.TEXT, 38));
 
             LinearLayout col = Ui.column(this);
@@ -282,7 +310,7 @@ public class MainActivity extends Activity {
             row.addView(time);
 
             if (pending) {
-                TextView mark = Ui.text(this, "✓", 15, 0xFF04231B, Ui.MEDIUM);
+                TextView mark = Ui.text(this, "✓", 15, Ui.ON_ACCENT, Ui.MEDIUM);
                 mark.setGravity(Gravity.CENTER);
                 int s = dp(34);
                 LinearLayout.LayoutParams mp = Ui.lp(s, s);

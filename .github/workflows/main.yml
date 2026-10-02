@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -20,17 +20,38 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Build debug APK
+      - name: Restore signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
         run: |
-          gradle assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk SalahReminder.apk
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::KEYSTORE_B64 secret is missing — updates would not install over each other."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > keystore.jks
+
+      - name: Build signed APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          gradle assembleRelease -PbuildNumber=${{ github.run_number }}
+          cp app/build/outputs/apk/release/app-release.apk SalahReminder.apk
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f keystore.jks
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.1.${{ github.run_number }}
-          name: Salah Reminder v2.1.${{ github.run_number }}
+          tag_name: v2.2.${{ github.run_number }}
+          name: Salah Reminder 2.2.${{ github.run_number }}
           files: SalahReminder.apk
           make_latest: true
           body: |
-            Install: download **SalahReminder.apk** below and open it on your phone.
+            Tap **SalahReminder.apk** below to install.
+
+            Already have the app? It checks for this automatically — open it and tap the
+            update banner on the home screen.

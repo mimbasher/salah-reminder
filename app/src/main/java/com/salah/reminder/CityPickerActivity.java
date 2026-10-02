@@ -50,6 +50,7 @@ public class CityPickerActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Ui.apply(this);
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
         root.setPadding(dp(18), dp(16), dp(18), 0);

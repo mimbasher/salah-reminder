@@ -1,14 +1,54 @@
 plugins { id 'com.android.application' }
+
+// Build number comes from CI (-PbuildNumber=<run>); 0 for local builds.
+def buildNumber = ((project.findProperty("buildNumber") ?: "0") as String).toInteger()
+
+// Signing material: keystore.properties locally, environment variables in CI. Neither is committed.
+def signing = new Properties()
+def signingFile = rootProject.file("keystore.properties")
+if (signingFile.exists()) signingFile.withInputStream { signing.load(it) }
+
+def storeName = System.getenv("KEYSTORE_FILE") ?: signing.getProperty("storeFile") ?: "keystore.jks"
+def storeFileRef = rootProject.file(storeName)
+def storePass = System.getenv("KEYSTORE_PASSWORD") ?: signing.getProperty("storePassword")
+def keyName = System.getenv("KEY_ALIAS") ?: signing.getProperty("keyAlias")
+def keyPass = System.getenv("KEY_PASSWORD") ?: signing.getProperty("keyPassword")
+def canSign = storeFileRef.exists() && storePass != null && keyName != null && keyPass != null
+
 android {
     namespace 'com.salah.reminder'
     compileSdk 34
+
     defaultConfig {
         applicationId "com.salah.reminder"
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName "2.1"
+        versionCode 20200 + buildNumber
+        versionName "2.2.${buildNumber}"
     }
+
+    signingConfigs {
+        if (canSign) {
+            appKey {
+                storeFile storeFileRef
+                storePassword storePass
+                keyAlias keyName
+                keyPassword keyPass
+            }
+        }
+    }
+
+    buildTypes {
+        // Both variants use the same key, so an update always installs over the other.
+        release {
+            minifyEnabled false
+            if (canSign) signingConfig signingConfigs.appKey
+        }
+        debug {
+            if (canSign) signingConfig signingConfigs.appKey
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
