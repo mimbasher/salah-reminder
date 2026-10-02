@@ -28,6 +28,9 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Unit tests
+        run: gradle testDebugUnitTest
+
       - name: Restore signing key
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}

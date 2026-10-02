@@ -55,3 +55,8 @@ android {
         encoding = "UTF-8"
     }
 }
+
+// PrayerCalc is plain Java, so its tests are plain JVM tests: `gradle testDebugUnitTest`.
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
