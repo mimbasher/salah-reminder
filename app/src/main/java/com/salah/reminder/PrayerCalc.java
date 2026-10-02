@@ -14,6 +14,9 @@ public class PrayerCalc {
 
     public static final double KAABA_LAT = 21.4225, KAABA_LNG = 39.8262;
 
+    /** Slots in the raw hour table below. Maghrib is sunset, so it has no slot of its own. */
+    private static final int FAJR = 0, SUNRISE = 1, DHUHR = 2, ASR = 3, SUNSET = 4, ISHA = 5;
+
     /** Returns the five prayer times (epoch millis) for the calendar day of {@code day}. */
     public static long[] times(Calendar day, double lat, double lng, int method, boolean hanafi) {
         Calendar mid = (Calendar) day.clone();
@@ -25,32 +28,81 @@ public class PrayerCalc {
                 mid.get(Calendar.DAY_OF_MONTH)) - lng / (15 * 24.0);
 
         double fajrA = ANGLES[method][0], ishaA = ANGLES[method][1];
-        double fajr = sunAngleTime(jd, lat, fajrA, 5 / 24.0, true);
-        double sunrise = sunAngleTime(jd, lat, 0.833, 6 / 24.0, true);
-        double dhuhr = midDay(jd, 12 / 24.0);
-        double asr = asrTime(jd, lat, hanafi ? 2 : 1, 13 / 24.0);
-        double sunset = sunAngleTime(jd, lat, 0.833, 18 / 24.0, false);
-        double maghrib = sunset;
-        double isha = ishaA < 0 ? maghrib + (-ishaA) / 60.0
-                : sunAngleTime(jd, lat, ishaA, 18 / 24.0, false);
+        double[] h = dayTimes(jd, lat, fajrA, ishaA, hanafi);
 
-        // High-latitude safety (angle-based night portion)
-        double night = 24 - (sunset - sunrise);
+        // Polar day or night: there is no sunrise or sunset to reason from, and the night-portion
+        // rule below needs both. Borrow them from the nearest day that has them (aqrab al-ayyam).
+        if (!usableDay(h) && !borrowNearestDay(h, jd, lat, fajrA, ishaA, hanafi)) {
+            // Within a degree of the pole the sun's altitude barely changes all year, so no day
+            // is usable. Last resort: the nearest latitude that has ordinary days (aqrab
+            // al-bilad). Dhuhr does not depend on latitude, so it stays exact either way.
+            h = dayTimes(jd, Math.copySign(48, lat), fajrA, ishaA, hanafi);
+        }
+
+        // High-latitude safety (angle-based night portion), for nights too short for the angle.
+        double night = 24 - (h[SUNSET] - h[SUNRISE]);
         double fp = fajrA / 60.0 * night;
-        if (Double.isNaN(fajr) || sunrise - fajr > fp) fajr = sunrise - fp;
+        if (Double.isNaN(h[FAJR]) || h[SUNRISE] - h[FAJR] > fp) h[FAJR] = h[SUNRISE] - fp;
         if (ishaA > 0) {
             double ip = ishaA / 60.0 * night;
-            if (Double.isNaN(isha) || isha - sunset > ip) isha = sunset + ip;
+            if (Double.isNaN(h[ISHA]) || h[ISHA] - h[SUNSET] > ip) h[ISHA] = h[SUNSET] + ip;
         }
 
         double tz = TimeZone.getDefault().getOffset(mid.getTimeInMillis() + 12 * 3600000L) / 3600000.0;
-        double[] h = {fajr, dhuhr, asr, maghrib, isha};
+        double[] out5 = {h[FAJR], h[DHUHR], h[ASR], h[SUNSET], h[ISHA]};
         long[] out = new long[5];
         for (int i = 0; i < 5; i++) {
-            double t = h[i] + tz - lng / 15.0;
-            out[i] = mid.getTimeInMillis() + Math.round(t * 3600000.0);
+            out[i] = mid.getTimeInMillis() + Math.round((out5[i] + tz - lng / 15.0) * 3600000.0);
         }
         return out;
+    }
+
+    /**
+     * Whether a day can be borrowed from: a real sunrise and sunset with noon and Asr between
+     * them. Within a few days of a polar night the sun clears the horizon for minutes only, and
+     * the altitude Asr is measured from is then reached after sunset — ordered times, but not
+     * ones to copy. NaN fails every comparison here, so this covers the missing-sun case too.
+     */
+    private static boolean usableDay(double[] h) {
+        return h[SUNRISE] < h[DHUHR] && h[DHUHR] < h[ASR] && h[ASR] < h[SUNSET];
+    }
+
+    /** The raw local-solar hours for one day, with NaN wherever the sun never reaches the angle. */
+    private static double[] dayTimes(double jd, double lat, double fajrA, double ishaA,
+                                     boolean hanafi) {
+        double[] h = new double[6];
+        h[FAJR] = sunAngleTime(jd, lat, fajrA, 5 / 24.0, true);
+        h[SUNRISE] = sunAngleTime(jd, lat, 0.833, 6 / 24.0, true);
+        h[DHUHR] = midDay(jd, 12 / 24.0);
+        h[ASR] = asrTime(jd, lat, hanafi ? 2 : 1, 13 / 24.0);
+        h[SUNSET] = sunAngleTime(jd, lat, 0.833, 18 / 24.0, false);
+        h[ISHA] = ishaA < 0 ? h[SUNSET] + (-ishaA) / 60.0
+                : sunAngleTime(jd, lat, ishaA, 18 / 24.0, false);
+        return h;
+    }
+
+    /**
+     * Nearest-day substitution: walks outwards from {@code jd}, the past first, for a day whose
+     * sun both rises and sets, and takes that day's whole timetable.
+     *
+     * It has to be the whole day, not only the missing times. Under a polar night the sun is
+     * below the horizon all day yet still crosses the negative altitude Asr is measured from,
+     * so today's Asr is a real number — and pairing it with a borrowed Maghrib put Asr after
+     * sunset at Tromsø in December. One real day's times stay in order among themselves.
+     *
+     * @return false if half a year holds no usable day, which only happens at the poles.
+     */
+    private static boolean borrowNearestDay(double[] h, double jd, double lat, double fajrA,
+                                            double ishaA, boolean hanafi) {
+        for (int step = 1; step <= 183; step++) {
+            for (int dir = -1; dir <= 1; dir += 2) {
+                double[] alt = dayTimes(jd + dir * step, lat, fajrA, ishaA, hanafi);
+                if (!usableDay(alt)) continue;
+                System.arraycopy(alt, 0, h, 0, h.length);
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Sunrise for the calendar day of {@code day}, as epoch millis, or 0 if the sun never rises. */
