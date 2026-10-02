@@ -3,7 +3,6 @@ package com.salah.reminder;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -200,12 +199,6 @@ final class Ui {
         return p;
     }
 
-    static View spacerH(Context c) {
-        View v = new View(c);
-        v.setLayoutParams(lp(0, 1, 1));
-        return v;
-    }
-
     static View divider(Context c) {
         View v = new View(c);
         v.setBackgroundColor(LINE);
@@ -284,12 +277,5 @@ final class Ui {
     /** Fades a colour towards transparent, for tinted bubbles on dark surfaces. */
     static int alpha(int color, int a) {
         return (color & 0x00FFFFFF) | (a << 24);
-    }
-
-    static int blend(int color, int onto, float amount) {
-        return Color.rgb(
-                Math.round(Color.red(onto) + (Color.red(color) - Color.red(onto)) * amount),
-                Math.round(Color.green(onto) + (Color.green(color) - Color.green(onto)) * amount),
-                Math.round(Color.blue(onto) + (Color.blue(color) - Color.blue(onto)) * amount));
     }
 }
