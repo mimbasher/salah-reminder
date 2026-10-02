@@ -39,7 +39,6 @@ public class Scheduler {
     static final int NID_PRE = 900, NID_QIYAM = 950, NID_DHUHA = 960, NID_DUA = 970;
     static final int NID_ADHAN = 2000;
 
-    /** Qiyam al-Layl reminder modes, in the order the settings screen shows them. */
     /** Said after a prayer: "may Allah accept it from us and from you". */
     static final String DUA_AR = "تَقبَّلَ اللهُ "
             + "مِنّا وَمِنكم";
@@ -325,6 +324,51 @@ public class Scheduler {
 
     static long pending(Context c, int i) { return prefs(c).getLong("pending_" + i, 0); }
 
+    /** The "you prayed this" flag for prayer {@code i} on the day of {@code t}. */
+    static String doneKey(long t, int i) { return "done_" + dayKey(t) + "_" + i; }
+
+    static boolean isDone(Context c, long t, int i) {
+        return prefs(c).getBoolean(doneKey(t, i), false);
+    }
+
+    /**
+     * "I prayed this", from inside the app. Works whether a card is still waiting for this
+     * prayer or it passed unconfirmed, so a missed notification is never a dead end.
+     */
+    static void markPrayed(Context c, int i, long t) {
+        if (pending(c, i) != 0) {
+            onPrayed(c, i);
+            return;
+        }
+        SharedPreferences p = prefs(c);
+        SharedPreferences.Editor e = p.edit().putBoolean(doneKey(t, i), true);
+        pruneDone(p, e);
+        e.apply();
+    }
+
+    /** Takes a tick back, for a mis-tap. */
+    static void unmarkPrayed(Context c, int i, long t) {
+        prefs(c).edit().remove(doneKey(t, i)).apply();
+    }
+
+    /** How many days of ticks to keep. The home screen only ever shows today's. */
+    private static final int DONE_KEEP_DAYS = 7;
+
+    /** Drops ticks older than a week, so the prefs file doesn't grow for the app's lifetime. */
+    private static void pruneDone(SharedPreferences p, SharedPreferences.Editor e) {
+        Calendar cut = Calendar.getInstance();
+        cut.add(Calendar.DAY_OF_MONTH, -DONE_KEEP_DAYS);
+        int oldest = dayKey(cut.getTimeInMillis());
+        for (String key : p.getAll().keySet()) {
+            if (!key.startsWith("done_")) continue;
+            int sep = key.indexOf('_', 5);
+            if (sep < 0) continue;
+            try {
+                if (Integer.parseInt(key.substring(5, sep)) < oldest) e.remove(key);
+            } catch (NumberFormatException ignored) { }
+        }
+    }
+
     static void onPrayerTime(Context c, int i, long t) {
         prefs(c).edit().putLong("pending_" + i, t).putInt("nag_i", i).apply();
         c.getSystemService(NotificationManager.class).cancel(NID_PRE);
@@ -366,8 +410,10 @@ public class Scheduler {
 
     static void onPrayed(Context c, int i) {
         long t = pending(c, i);
-        SharedPreferences.Editor e = prefs(c).edit().remove("pending_" + i);
-        if (t != 0) e.putBoolean("done_" + dayKey(t) + "_" + i, true);
+        SharedPreferences p = prefs(c);
+        SharedPreferences.Editor e = p.edit().remove("pending_" + i);
+        if (t != 0) e.putBoolean(doneKey(t, i), true);
+        pruneDone(p, e);
         if (prefs(c).getInt("nag_i", -1) == i) {
             c.getSystemService(AlarmManager.class).cancel(bcast(c, RC_NAG, A_NAG, i, 0));
             e.remove("nag_i");

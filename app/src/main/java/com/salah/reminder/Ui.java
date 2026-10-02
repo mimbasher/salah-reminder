@@ -121,6 +121,12 @@ final class Ui {
         return g;
     }
 
+    static GradientDrawable circleOutline(Context c, int color, int stroke) {
+        GradientDrawable g = circle(color);
+        g.setStroke(dp(c, 1), stroke);
+        return g;
+    }
+
     /** Wraps a background so taps show a ripple. */
     static Drawable tappable(Drawable bg) {
         return new RippleDrawable(ColorStateList.valueOf(RIPPLE), bg, null);

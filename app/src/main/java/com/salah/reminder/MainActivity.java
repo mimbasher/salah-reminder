@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -258,11 +259,10 @@ public class MainActivity extends ThemedActivity {
     /** Changes whenever a prayer is marked prayed or a new card appears. */
     private int stateMask(long now) {
         long[] t = Scheduler.timesFor(this, Calendar.getInstance());
-        SharedPreferences p = Scheduler.prefs(this);
         int m = 0;
         for (int i = 0; i < 5; i++) {
             if (Scheduler.pending(this, i) != 0) m |= 1 << i;
-            if (p.getBoolean("done_" + Scheduler.dayKey(t[i]) + "_" + i, false)) m |= 1 << (i + 8);
+            if (Scheduler.isDone(this, t[i], i)) m |= 1 << (i + 8);
         }
         return m;
     }
@@ -275,12 +275,11 @@ public class MainActivity extends ThemedActivity {
 
     private void paintList(long now, int nextIndex, long nextTime) {
         listCard.removeAllViews();
-        SharedPreferences p = Scheduler.prefs(this);
         long[] t = Scheduler.timesFor(this, Calendar.getInstance());
         for (int i = 0; i < 5; i++) {
             final int idx = i;
             boolean pending = Scheduler.pending(this, i) != 0;
-            boolean done = p.getBoolean("done_" + Scheduler.dayKey(t[i]) + "_" + i, false);
+            boolean done = Scheduler.isDone(this, t[i], i);
             boolean isNext = i == nextIndex && sameDay(nextTime, now);
 
             LinearLayout row = Ui.rowOf(this);
@@ -302,7 +301,7 @@ public class MainActivity extends ThemedActivity {
             if (pending) { sub = "Waiting — mark it when you've prayed"; subColor = Ui.AMBER; }
             else if (done) sub = "Prayed ✓";
             else if (isNext) { sub = "in " + compact(Math.max(0, t[i] - now)); subColor = Ui.ACCENT; }
-            else if (t[i] <= now) sub = "Passed";
+            else if (t[i] <= now) sub = "Tap ✓ if you prayed";
             else sub = "Upcoming";
             TextView subView = Ui.text(this, sub, 12, subColor, null);
             subView.setPadding(0, dp(2), 0, 0);
@@ -313,27 +312,16 @@ public class MainActivity extends ThemedActivity {
                     done ? Ui.MUTED : isNext ? Ui.ACCENT : Ui.TEXT, Ui.MEDIUM);
             row.addView(time);
 
+            final long at = t[i];
             if (pending) {
-                TextView mark = Ui.text(this, "✓", 15, Ui.ON_ACCENT, Ui.MEDIUM);
-                mark.setGravity(Gravity.CENTER);
-                int s = dp(34);
-                LinearLayout.LayoutParams mp = Ui.lp(s, s);
-                mp.leftMargin = dp(10);
-                mark.setLayoutParams(mp);
-                Ui.clickable(mark, Ui.circle(Ui.ACCENT), v -> {
-                    Scheduler.onPrayed(this, idx);
-                    shown = "";
-                    paint();
-                    sayDua();
-                });
-                row.addView(mark);
+                row.addView(tick(Ui.ON_ACCENT, Ui.circle(Ui.ACCENT), v -> confirm(idx, at)));
             } else if (done) {
-                TextView ok = Ui.text(this, "✓", 15, Ui.ACCENT, Ui.MEDIUM);
-                LinearLayout.LayoutParams op = Ui.lp(dp(34), dp(34));
-                op.leftMargin = dp(10);
-                ok.setLayoutParams(op);
-                ok.setGravity(Gravity.CENTER);
-                row.addView(ok);
+                row.addView(tick(Ui.ACCENT, Ui.circleOutline(this, Ui.alpha(Ui.ACCENT, 0x2B), Ui.ACCENT),
+                        v -> undo(idx, at)));
+            } else if (at <= now) {
+                // The card was missed, or never arrived: confirming it here is the only way back.
+                row.addView(tick(Ui.MUTED, Ui.circleOutline(this, Ui.SURFACE_2, Ui.LINE),
+                        v -> confirm(idx, at)));
             } else {
                 View pad = new View(this);
                 LinearLayout.LayoutParams pp = Ui.lp(dp(34), dp(1));
@@ -347,6 +335,33 @@ public class MainActivity extends ThemedActivity {
             listCard.addView(row, rp);
         }
         paintExtraRows(now);
+    }
+
+    /** The round ✓ at the end of a prayer row. */
+    private TextView tick(int fg, Drawable bg, View.OnClickListener l) {
+        TextView t = Ui.text(this, "✓", 15, fg, Ui.MEDIUM);
+        t.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams p = Ui.lp(dp(34), dp(34));
+        p.leftMargin = dp(10);
+        t.setLayoutParams(p);
+        Ui.clickable(t, bg, l);
+        return t;
+    }
+
+    /** "I prayed this" from inside the app — for a waiting card or a prayer already passed. */
+    private void confirm(int i, long at) {
+        Scheduler.markPrayed(this, i, at);
+        shown = "";
+        paint();
+        sayDua();
+    }
+
+    /** Takes the tick back, for a mis-tap. */
+    private void undo(int i, long at) {
+        Scheduler.unmarkPrayed(this, i, at);
+        shown = "";
+        paint();
+        toast(PrayerCalc.NAMES[i] + " is no longer marked as prayed");
     }
 
     /** The optional prayers, under a divider, only while their reminders are switched on. */
