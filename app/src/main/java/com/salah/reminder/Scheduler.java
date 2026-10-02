@@ -32,11 +32,13 @@ public class Scheduler {
     static final String CH_ADHAN = "adhan_v1";          // adhan player card
     static final String CH_QIYAM = "qiyam_v1";          // night prayer reminder
     static final String CH_DHUHA = "dhuha_v1";          // forenoon prayer reminder
+    static final String CH_UPDATE = "update_v1";        // "a new version is out" (silent)
 
     static final int ACCENT = 0xFF34D8A5;
 
     static final int RC_PRAYER = 100, RC_PRE = 101, RC_NAG = 200, RC_QIYAM = 102, RC_DHUHA = 103;
     static final int NID_PRE = 900, NID_QIYAM = 950, NID_DHUHA = 960, NID_DUA = 970;
+    static final int NID_UPDATE = 980;
     static final int NID_ADHAN = 2000;
 
     /** Said after a prayer: "may Allah accept it from us and from you". */
@@ -483,6 +485,13 @@ public class Scheduler {
                 NotificationManager.IMPORTANCE_DEFAULT);
         dhuha.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         nm.createNotificationChannel(dhuha);
+
+        // An update is worth knowing about, never worth interrupting a prayer for: no sound.
+        NotificationChannel update = new NotificationChannel(CH_UPDATE, "App updates",
+                NotificationManager.IMPORTANCE_LOW);
+        update.setSound(null, null);
+        update.enableVibration(false);
+        nm.createNotificationChannel(update);
     }
 
     static PendingIntent openApp(Context c, int code) {

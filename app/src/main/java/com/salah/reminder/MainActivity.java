@@ -70,13 +70,24 @@ public class MainActivity extends ThemedActivity {
         super.onResume();
         shown = "";
         paint();
+        Updater.clearNotice(this);                  // the notice has done its job
         Updater.resume(this);                       // an update downloaded while we were away
+        if (getIntent() != null && getIntent().getBooleanExtra(Updater.EXTRA_INSTALL, false)) {
+            getIntent().removeExtra(Updater.EXTRA_INSTALL);   // only act on it once
+            Updater.install(this);
+        }
         Updater.check(this, false, (version, error) -> {
             shown = "";
             paint();
         });
         tick.removeCallbacks(ticker);
         tick.postDelayed(ticker, 1000);
+    }
+
+    @Override
+    protected void onNewIntent(Intent it) {
+        super.onNewIntent(it);
+        setIntent(it);          // so a tap while we are already open still starts the install
     }
 
     @Override

@@ -38,8 +38,9 @@ And the reminder that stays in the notification panel until you confirm:
   middle of the night, or however long before Fajr you choose.
 - **Dhuha** — an optional forenoon reminder, a set time after sunrise or at mid-morning.
 - **Taqabbal Allahu minna wa minkum** — shown when you mark a prayer done.
-- **Updates itself** — it checks GitHub for a newer build, shows a banner on the home screen,
-  and installs it when you tap. No store, no sideloading dance.
+- **Tells you when there's a new version** — a quiet notification when one appears, without
+  waiting for you to open the app. Tap it and the new build downloads and goes to Android's
+  installer. There's a banner on the home screen too. No store, no sideloading dance.
 - **Light, dark, or whatever your phone is set to** — your choice, in Settings.
 - **Survives** reboots, app updates, and time-zone changes.
 

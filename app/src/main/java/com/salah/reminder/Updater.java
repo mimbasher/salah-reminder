@@ -2,6 +2,9 @@ package com.salah.reminder;
 
 import android.app.Activity;
 import android.app.DownloadManager;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -30,6 +33,9 @@ final class Updater {
     static final String REPO = "mimbasher/salah-reminder";
     private static final String LATEST = "https://api.github.com/repos/" + REPO + "/releases/latest";
     static final String RELEASES_PAGE = "https://github.com/" + REPO + "/releases/latest";
+
+    /** Set on the intent behind the notification, so opening it starts the download at once. */
+    static final String EXTRA_INSTALL = "com.salah.reminder.INSTALL_UPDATE";
 
     private static final long EVERY = 6 * 3600000L;     // don't nag GitHub more often than this
     private static final String FILE = "update.apk";
@@ -128,6 +134,50 @@ final class Updater {
         }).start();
     }
 
+    /**
+     * Checks from the background — off an alarm that was going to wake us anyway — and puts a
+     * notice in the shade when there is something newer, so a new version doesn't wait for the
+     * next time the app happens to be opened.
+     */
+    static void checkInBackground(Context c, Runnable whenDone) {
+        check(c, false, (version, error) -> {
+            if (version != null) notifyAvailable(c, version);
+            if (whenDone != null) whenDone.run();
+        });
+    }
+
+    /** One notice per version: being told the same thing five times a day is nagging. */
+    static void notifyAvailable(Context c, String version) {
+        SharedPreferences p = Scheduler.prefs(c);
+        if (version.equals(p.getString("upd_notified", null))) return;
+        p.edit().putString("upd_notified", version).apply();
+
+        Scheduler.ensureChannels(c);
+        Intent open = new Intent(c, MainActivity.class)
+                .putExtra(EXTRA_INSTALL, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent pi = PendingIntent.getActivity(c, 830, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification n = new Notification.Builder(c, Scheduler.CH_UPDATE)
+                .setSmallIcon(R.drawable.ic_notif)
+                .setContentTitle("Salah Reminder " + version + " is out")
+                .setContentText("Tap to download and install it")
+                .setStyle(new Notification.BigTextStyle().bigText(
+                        "You are on " + installedVersion(c) + ". Tap to fetch " + version
+                                + " and hand it to Android's installer."))
+                .setColor(Scheduler.ACCENT)
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .setCategory(Notification.CATEGORY_RECOMMENDATION)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .build();
+        c.getSystemService(NotificationManager.class).notify(Scheduler.NID_UPDATE, n);
+    }
+
+    static void clearNotice(Context c) {
+        c.getSystemService(NotificationManager.class).cancel(Scheduler.NID_UPDATE);
+    }
+
     private static String get(String url) throws Exception {
         HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
         try {
@@ -198,6 +248,7 @@ final class Updater {
         SharedPreferences p = Scheduler.prefs(a);
         if (available(a) == null) {
             forget(a);
+            p.edit().remove("upd_notified").apply();
             return;
         }
         Uri uri = finishedDownload(a);
