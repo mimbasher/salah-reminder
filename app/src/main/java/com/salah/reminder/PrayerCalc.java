@@ -53,6 +53,21 @@ public class PrayerCalc {
         return out;
     }
 
+    /** Sunrise for the calendar day of {@code day}, as epoch millis, or 0 if the sun never rises. */
+    public static long sunrise(Calendar day, double lat, double lng) {
+        Calendar mid = (Calendar) day.clone();
+        mid.set(Calendar.HOUR_OF_DAY, 0);
+        mid.set(Calendar.MINUTE, 0);
+        mid.set(Calendar.SECOND, 0);
+        mid.set(Calendar.MILLISECOND, 0);
+        double jd = julian(mid.get(Calendar.YEAR), mid.get(Calendar.MONTH) + 1,
+                mid.get(Calendar.DAY_OF_MONTH)) - lng / (15 * 24.0);
+        double sr = sunAngleTime(jd, lat, 0.833, 6 / 24.0, true);
+        if (Double.isNaN(sr)) return 0;
+        double tz = TimeZone.getDefault().getOffset(mid.getTimeInMillis() + 12 * 3600000L) / 3600000.0;
+        return mid.getTimeInMillis() + Math.round((sr + tz - lng / 15.0) * 3600000.0);
+    }
+
     /** Qibla bearing in degrees from true north. */
     public static double qibla(double lat, double lng) {
         double phi = Math.toRadians(lat), k = Math.toRadians(KAABA_LAT);

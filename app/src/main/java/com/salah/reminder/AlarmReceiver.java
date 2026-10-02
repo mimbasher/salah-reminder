@@ -17,6 +17,8 @@ public class AlarmReceiver extends BroadcastReceiver {
             case Scheduler.A_NAG:    Scheduler.onNag(c, i); break;
             case Scheduler.A_PRAYED: Scheduler.onPrayed(c, i); break;
             case Scheduler.A_REPIN:  Scheduler.onRepin(c, i); break;
+            case Scheduler.A_QIYAM:  Scheduler.onQiyam(c, t); break;
+            case Scheduler.A_DHUHA:  Scheduler.onDhuha(c, t); break;
         }
     }
 }

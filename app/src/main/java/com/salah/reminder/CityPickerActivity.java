@@ -27,7 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /** Pick a city from the bundled list: tap a country, then a city. No typing, no internet. */
-public class CityPickerActivity extends Activity {
+public class CityPickerActivity extends ThemedActivity {
     static final String EX_NAME = "name", EX_LAT = "lat", EX_LNG = "lng";
 
     /** The whole list, parsed once and kept for as long as the process lives. */
@@ -50,13 +50,12 @@ public class CityPickerActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        Ui.apply(this);
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
         root.setPadding(dp(18), dp(16), dp(18), 0);
 
         LinearLayout head = Ui.rowOf(this);
-        head.addView(Ui.iconButton(this, "←", v -> up()));
+        head.addView(Ui.iconButton(this, R.drawable.ic_back, "Back", v -> up()));
         title = Ui.text(this, "Choose your city", 21, Ui.TEXT, Ui.MEDIUM);
         title.setPadding(dp(12), 0, 0, 0);
         head.addView(title);

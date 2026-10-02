@@ -11,6 +11,7 @@ import android.graphics.drawable.RippleDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -29,6 +30,9 @@ final class Ui {
     static final int ON_HERO = 0xFFFFFFFF;
     static final int ON_HERO_2 = 0xB3FFFFFF;
 
+    static final int THEME_SYSTEM = 0, THEME_LIGHT = 1, THEME_DARK = 2;
+    static final String[] THEME_NAMES = {"System", "Light", "Dark"};
+
     static final Typeface LIGHT  = Typeface.create("sans-serif-light", Typeface.NORMAL);
     static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
 
@@ -42,6 +46,23 @@ final class Ui {
     static void apply(Context c) {
         palette((c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES);
+    }
+
+    /** Which of the three theme settings the user picked. */
+    static int themeChoice(Context c) {
+        int t = Scheduler.prefs(c).getInt("theme", THEME_SYSTEM);
+        return t < 0 || t > 2 ? THEME_SYSTEM : t;
+    }
+
+    /** Whether the app should be dark right now, honouring the setting over the system. */
+    static boolean nightWanted(Context c) {
+        switch (themeChoice(c)) {
+            case THEME_LIGHT: return false;
+            case THEME_DARK: return true;
+            default:
+                return (c.getResources().getConfiguration().uiMode
+                        & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        }
     }
 
     private static void palette(boolean night) {
@@ -209,14 +230,19 @@ final class Ui {
         return t;
     }
 
-    /** Round icon button, e.g. the back arrow or the gear. */
-    static TextView iconButton(Context c, String glyph, View.OnClickListener l) {
-        TextView t = text(c, glyph, 17, TEXT, null);
-        t.setGravity(Gravity.CENTER);
-        int s = dp(c, 42);
-        t.setLayoutParams(lp(s, s));
-        clickable(t, circle(SURFACE), l);
-        return t;
+    /** Round icon button for the back arrow, the gear and the like. */
+    static ImageView iconButton(Context c, int drawable, String description, View.OnClickListener l) {
+        ImageView v = new ImageView(c);
+        v.setImageResource(drawable);
+        v.setImageTintList(ColorStateList.valueOf(TEXT));
+        v.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        v.setContentDescription(description);
+        int pad = dp(c, 11);
+        v.setPadding(pad, pad, pad, pad);
+        int size = dp(c, 44);
+        v.setLayoutParams(lp(size, size));
+        clickable(v, circle(SURFACE), l);
+        return v;
     }
 
     static EditText input(Context c, String hint) {

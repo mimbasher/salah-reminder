@@ -23,7 +23,7 @@ import android.widget.TextView;
 import java.util.Locale;
 
 /** A compass that points to the Kaaba, with clear "turn left / turn right" guidance. */
-public class QiblaActivity extends Activity implements SensorEventListener {
+public class QiblaActivity extends ThemedActivity implements SensorEventListener {
     private SensorManager sm;
     private Sensor rot, acc, mag;
     private final float[] accV = new float[3], magV = new float[3];
@@ -36,7 +36,6 @@ public class QiblaActivity extends Activity implements SensorEventListener {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        Ui.apply(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         LinearLayout root = Ui.column(this);
@@ -44,7 +43,7 @@ public class QiblaActivity extends Activity implements SensorEventListener {
         root.setPadding(dp(18), dp(16), dp(18), dp(22));
 
         LinearLayout head = Ui.rowOf(this);
-        head.addView(Ui.iconButton(this, "←", v -> finish()));
+        head.addView(Ui.iconButton(this, R.drawable.ic_back, "Back", v -> finish()));
         TextView title = Ui.text(this, "Qibla", 21, Ui.TEXT, Ui.MEDIUM);
         title.setPadding(dp(12), 0, 0, 0);
         head.addView(title);

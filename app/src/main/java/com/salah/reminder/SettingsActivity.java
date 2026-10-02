@@ -1,8 +1,6 @@
 package com.salah.reminder;
 
 import android.Manifest;
-import android.app.Activity;
-import android.app.AlarmManager;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -26,6 +24,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -34,29 +33,28 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
 /** Everything configurable, grouped and saved the moment you change it. */
-public class SettingsActivity extends Activity {
+public class SettingsActivity extends ThemedActivity {
     private static final int RQ_LOC = 2, RQ_AUDIO = 3, RQ_CITY = 4;
     private static final int[] PRE_CHOICES = {0, 5, 10, 15, 20, 30, 45};
     private static final int[] NAG_CHOICES = {5, 10, 15, 20, 30, 60};
 
     private interface Pick { void on(int value); }
 
-    private TextView placeView, soundView, updateStatus, updateButton;
-    private EditText cityE, latE, lngE;
-    private Spinner methodS, asrS;
-    private Switch adhanSw;
-    private LinearLayout preRow, nagRow;
+    private TextView placeView, soundView, updateStatus, updateButton, qiyamHint, dhuhaHint;
+    private Switch adhanSwitch, qiyamSwitch, dhuhaSwitch;
+    private LinearLayout preRow, nagRow, qiyamRow, qiyamBeforeRow, themeRow;
+    private LinearLayout dhuhaRow, dhuhaAfterRow;
+    private View qiyamBeforeBox, qiyamOptions2, dhuhaOptions, dhuhaAfterBox;
+    private View qiyamOptions;
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        Ui.apply(this);
         buildUi();
     }
 
@@ -81,7 +79,7 @@ public class SettingsActivity extends Activity {
         setContentView(sv);
 
         LinearLayout head = Ui.rowOf(this);
-        head.addView(Ui.iconButton(this, "←", v -> finish()));
+        head.addView(Ui.iconButton(this, R.drawable.ic_back, "Back", v -> finish()));
         TextView title = Ui.text(this, "Settings", 21, Ui.TEXT, Ui.MEDIUM);
         title.setPadding(dp(12), 0, 0, 0);
         head.addView(title);
@@ -91,44 +89,11 @@ public class SettingsActivity extends Activity {
         root.addView(Ui.sectionTitle(this, "Where you are"));
         LinearLayout loc = Ui.card(this);
         placeView = Ui.text(this, "", 15, Ui.TEXT, Ui.MEDIUM);
-        loc.addView(placeView);
-
-        loc.addView(Ui.primary(this, "🌍  Choose your city",
+        loc.addView(placeView, Ui.lp(-1, -2));
+        loc.addView(Ui.primary(this, "Choose your city",
                 v -> startActivityForResult(new Intent(this, CityPickerActivity.class), RQ_CITY)),
                 Ui.stacked(this, 14));
-        loc.addView(Ui.secondary(this, "📍  Use my current location",
-                v -> askLocation()), Ui.stacked(this, 10));
-
-        loc.addView(Ui.divider(this));
-        TextView advLabel = Ui.text(this, "If your town is not in the list", 12.5f, Ui.MUTED, null);
-        advLabel.setPadding(0, dp(6), 0, dp(8));
-        loc.addView(advLabel);
-
-        LinearLayout search = Ui.rowOf(this);
-        cityE = Ui.input(this, "Search online by name");
-        search.addView(cityE, Ui.lp(0, -2, 1));
-        TextView go = Ui.secondary(this, "Search", v -> searchCity());
-        LinearLayout.LayoutParams gp = Ui.lp(-2, -2);
-        gp.leftMargin = dp(8);
-        search.addView(go, gp);
-        loc.addView(search, Ui.lp(-1, -2));
-
-        TextView coordLabel = Ui.text(this, "Or exact coordinates", 12.5f, Ui.MUTED, null);
-        coordLabel.setPadding(0, dp(14), 0, dp(8));
-        loc.addView(coordLabel);
-        int signedDec = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
-                | InputType.TYPE_NUMBER_FLAG_SIGNED;
-        LinearLayout coords = Ui.rowOf(this);
-        latE = Ui.input(this, "Latitude");
-        latE.setInputType(signedDec);
-        lngE = Ui.input(this, "Longitude");
-        lngE.setInputType(signedDec);
-        coords.addView(latE, Ui.lp(0, -2, 1));
-        View gap = new View(this);
-        coords.addView(gap, Ui.lp(dp(8), 1));
-        coords.addView(lngE, Ui.lp(0, -2, 1));
-        loc.addView(coords, Ui.lp(-1, -2));
-        loc.addView(Ui.secondary(this, "Use these coordinates", v -> applyCoords()),
+        loc.addView(Ui.secondary(this, "Use my current location", v -> askLocation()),
                 Ui.stacked(this, 10));
         root.addView(loc, Ui.lp(-1, -2));
 
@@ -137,39 +102,31 @@ public class SettingsActivity extends Activity {
         LinearLayout calc = Ui.card(this);
         calc.addView(fieldLabel("Method"));
         int method = Math.min(Math.max(0, prefs().getInt("method", 0)), PrayerCalc.METHODS.length - 1);
-        methodS = dropdown(PrayerCalc.METHODS, method, i -> {
+        calc.addView(wrapField(dropdown(PrayerCalc.METHODS, method, i -> {
             prefs().edit().putInt("method", i).apply();
             reschedule("Method updated");
-        });
-        calc.addView(wrapField(methodS), Ui.lp(-1, -2));
+        })), Ui.lp(-1, -2));
         calc.addView(fieldLabel("Asr"));
-        asrS = dropdown(new String[]{"Standard (Shafi, Maliki, Hanbali)", "Hanafi"},
+        calc.addView(wrapField(dropdown(new String[]{"Standard (Shafi, Maliki, Hanbali)", "Hanafi"},
                 prefs().getBoolean("hanafi", false) ? 1 : 0, i -> {
             prefs().edit().putBoolean("hanafi", i == 1).apply();
             reschedule("Asr updated");
-        });
-        calc.addView(wrapField(asrS), Ui.lp(-1, -2));
+        })), Ui.lp(-1, -2));
         root.addView(calc, Ui.lp(-1, -2));
 
         // ---- adhan ----
         root.addView(Ui.sectionTitle(this, "Adhan sound"));
         LinearLayout ad = Ui.card(this);
-        adhanSw = new Switch(this);
-        adhanSw.setText("Play the adhan at prayer time");
-        adhanSw.setTextSize(15);
-        adhanSw.setTextColor(Ui.TEXT);
-        adhanSw.setChecked(prefs().getBoolean("adhan_on", true));
-        adhanSw.setOnCheckedChangeListener((v, on) ->
-                prefs().edit().putBoolean("adhan_on", on).apply());
-        ad.addView(adhanSw, Ui.lp(-1, -2));
+        adhanSwitch = switchRow("Play the adhan at prayer time", prefs().getBoolean("adhan_on", true),
+                on -> prefs().edit().putBoolean("adhan_on", on).apply());
+        ad.addView(adhanSwitch, Ui.lp(-1, -2));
         soundView = Ui.text(this, "", 12.5f, Ui.MUTED, null);
         soundView.setPadding(0, dp(8), 0, 0);
-        ad.addView(soundView);
+        ad.addView(soundView, Ui.lp(-1, -2));
 
         LinearLayout pickRow = Ui.rowOf(this);
         pickRow.addView(Ui.secondary(this, "Choose a file", v -> pickAudio()), Ui.lp(0, -2, 1));
-        View g2 = new View(this);
-        pickRow.addView(g2, Ui.lp(dp(8), 1));
+        pickRow.addView(spacer(), Ui.lp(dp(8), 1));
         pickRow.addView(Ui.secondary(this, "Use alarm tone", v -> {
             prefs().edit().remove("adhan_uri").remove("adhan_name").apply();
             refresh();
@@ -177,12 +134,10 @@ public class SettingsActivity extends Activity {
         ad.addView(pickRow, Ui.stacked(this, 12));
 
         LinearLayout testRow = Ui.rowOf(this);
-        testRow.addView(Ui.secondary(this, "▶  Test",
+        testRow.addView(Ui.secondary(this, "Test",
                 v -> AdhanService.start(this, prefs().getInt("next_i", 1))), Ui.lp(0, -2, 1));
-        View g3 = new View(this);
-        testRow.addView(g3, Ui.lp(dp(8), 1));
-        testRow.addView(Ui.secondary(this, "■  Stop",
-                v -> AdhanService.stop(this)), Ui.lp(0, -2, 1));
+        testRow.addView(spacer(), Ui.lp(dp(8), 1));
+        testRow.addView(Ui.secondary(this, "Stop", v -> AdhanService.stop(this)), Ui.lp(0, -2, 1));
         ad.addView(testRow, Ui.stacked(this, 8));
         root.addView(ad, Ui.lp(-1, -2));
 
@@ -193,10 +148,69 @@ public class SettingsActivity extends Activity {
         preRow = Ui.rowOf(this);
         rem.addView(scrollRow(preRow), Ui.lp(-1, -2));
         rem.addView(Ui.divider(this));
-        rem.addView(fieldLabel("Repeat until I tap ✓ Prayed"));
+        rem.addView(fieldLabel("Repeat until I tap Prayed"));
         nagRow = Ui.rowOf(this);
         rem.addView(scrollRow(nagRow), Ui.lp(-1, -2));
         root.addView(rem, Ui.lp(-1, -2));
+
+        // ---- dhuha ----
+        root.addView(Ui.sectionTitle(this, "Dhuha"));
+        LinearLayout dhuha = Ui.card(this);
+        dhuhaSwitch = switchRow("Remind me for the forenoon prayer",
+                prefs().getInt("dhuha", 0) > 0, this::setDhuhaEnabled);
+        dhuha.addView(dhuhaSwitch, Ui.lp(-1, -2));
+
+        LinearLayout dhuhaOpts = Ui.column(this);
+        dhuhaOpts.addView(fieldLabel("Remind me"));
+        dhuhaRow = Ui.rowOf(this);
+        dhuhaOpts.addView(scrollRow(dhuhaRow), Ui.lp(-1, -2));
+
+        LinearLayout afterBox = Ui.column(this);
+        afterBox.addView(fieldLabel("How long after sunrise"));
+        dhuhaAfterRow = Ui.rowOf(this);
+        afterBox.addView(scrollRow(dhuhaAfterRow), Ui.lp(-1, -2));
+        dhuhaAfterBox = afterBox;
+        dhuhaOpts.addView(afterBox, Ui.lp(-1, -2));
+
+        dhuhaHint = Ui.text(this, "", 12.5f, Ui.ACCENT, null);
+        dhuhaHint.setPadding(0, dp(10), 0, 0);
+        dhuhaOpts.addView(dhuhaHint, Ui.lp(-1, -2));
+        dhuhaOptions = dhuhaOpts;
+        dhuha.addView(dhuhaOpts, Ui.lp(-1, -2));
+        root.addView(dhuha, Ui.lp(-1, -2));
+
+        // ---- qiyam al-layl ----
+        root.addView(Ui.sectionTitle(this, "Qiyam al-Layl"));
+        LinearLayout qiyam = Ui.card(this);
+        qiyamSwitch = switchRow("Remind me for the night prayer",
+                prefs().getInt("qiyam", 0) > 0, this::setQiyamEnabled);
+        qiyam.addView(qiyamSwitch, Ui.lp(-1, -2));
+
+        LinearLayout options = Ui.column(this);
+        options.addView(fieldLabel("Wake me at"));
+        qiyamRow = Ui.rowOf(this);
+        options.addView(scrollRow(qiyamRow), Ui.lp(-1, -2));
+        LinearLayout beforeBox = Ui.column(this);
+        beforeBox.addView(fieldLabel("How long before Fajr"));
+        qiyamBeforeRow = Ui.rowOf(this);
+        beforeBox.addView(scrollRow(qiyamBeforeRow), Ui.lp(-1, -2));
+        qiyamBeforeBox = beforeBox;
+        options.addView(beforeBox, Ui.lp(-1, -2));
+
+        qiyamHint = Ui.text(this, "", 12.5f, Ui.ACCENT, null);
+        qiyamHint.setPadding(0, dp(10), 0, 0);
+        options.addView(qiyamHint, Ui.lp(-1, -2));
+        qiyamOptions = options;
+        qiyam.addView(options, Ui.lp(-1, -2));
+        root.addView(qiyam, Ui.lp(-1, -2));
+
+        // ---- appearance ----
+        root.addView(Ui.sectionTitle(this, "Appearance"));
+        LinearLayout look = Ui.card(this);
+        look.addView(fieldLabel("Theme"));
+        themeRow = Ui.rowOf(this);
+        look.addView(scrollRow(themeRow), Ui.lp(-1, -2));
+        root.addView(look, Ui.lp(-1, -2));
 
         // ---- reliability ----
         root.addView(Ui.sectionTitle(this, "Make it reliable"));
@@ -209,7 +223,7 @@ public class SettingsActivity extends Activity {
                     startActivity(new Intent("android.settings.REQUEST_SCHEDULE_EXACT_ALARM",
                             Uri.parse("package:" + getPackageName())));
                 } catch (Exception e) {
-                    toast("Open Android settings → Apps → Alarms & reminders");
+                    toast("Open Android settings, then Apps, then Alarms & reminders");
                 }
             }), Ui.stacked(this, 10));
         }
@@ -218,11 +232,10 @@ public class SettingsActivity extends Activity {
                 startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                         .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
             } catch (Exception e) {
-                toast("Open Android settings → Apps → Notifications");
+                toast("Open Android settings, then Apps, then Notifications");
             }
         }), Ui.stacked(this, 10));
-        rel.addView(Ui.primary(this, "Test a full reminder now", v -> testNow()),
-                Ui.stacked(this, 14));
+        rel.addView(Ui.primary(this, "Test a full reminder now", v -> testNow()), Ui.stacked(this, 14));
         root.addView(rel, Ui.lp(-1, -2));
 
         // ---- app & updates ----
@@ -234,8 +247,7 @@ public class SettingsActivity extends Activity {
                 12.5f, Ui.MUTED, null);
         updateStatus.setPadding(0, dp(6), 0, 0);
         app.addView(updateStatus, Ui.lp(-1, -2));
-        app.addView(Ui.secondary(this, "Check for updates now", v -> checkUpdate()),
-                Ui.stacked(this, 12));
+        app.addView(Ui.secondary(this, "Check for updates now", v -> checkUpdate()), Ui.stacked(this, 12));
         updateButton = Ui.primary(this, "Download and install", v -> Updater.install(this));
         updateButton.setVisibility(View.GONE);
         app.addView(updateButton, Ui.stacked(this, 10));
@@ -244,14 +256,18 @@ public class SettingsActivity extends Activity {
         root.addView(app, Ui.lp(-1, -2));
 
         TextView about = Ui.text(this,
-                "Times are computed on your phone from the sun's position — no internet needed "
-                        + "once your location is set.", 11.5f, Ui.MUTED, null);
+                "Times are computed on your phone from the sun's position, so no internet is "
+                        + "needed once your city is set.", 11.5f, Ui.MUTED, null);
         about.setGravity(Gravity.CENTER);
         about.setPadding(dp(8), dp(22), dp(8), 0);
         root.addView(about, Ui.lp(-1, -2));
 
-        loadFields();
+        refresh();
     }
+
+    // ---------------- small builders ----------------
+
+    private View spacer() { return new View(this); }
 
     private TextView fieldLabel(String s) {
         TextView t = Ui.text(this, s, 12.5f, Ui.MUTED, null);
@@ -274,6 +290,18 @@ public class SettingsActivity extends Activity {
         return h;
     }
 
+    private interface Toggled { void on(boolean checked); }
+
+    private Switch switchRow(String label, boolean checked, Toggled listener) {
+        Switch s = new Switch(this);
+        s.setText(label);
+        s.setTextSize(15);
+        s.setTextColor(Ui.TEXT);
+        s.setChecked(checked);                       // set before listening, so it stays quiet
+        s.setOnCheckedChangeListener((v, on) -> listener.on(on));
+        return s;
+    }
+
     /** Spinner that reports only real user changes, never its own initial selection. */
     private Spinner dropdown(String[] items, int initial, Pick onPick) {
         Spinner s = new Spinner(this);
@@ -293,46 +321,192 @@ public class SettingsActivity extends Activity {
         return s;
     }
 
-    private void paintChips(LinearLayout row, int[] values, int current, boolean minutes, Pick onPick) {
+    private void chips(LinearLayout row, String[] labels, int[] values, int current, Pick onPick) {
         row.removeAllViews();
-        for (int v : values) {
-            final int value = v;
-            String label = v == 0 ? "Off" : v + (minutes ? " min" : "");
-            TextView chip = Ui.chip(this, label, v == current, x -> onPick.on(value));
+        for (int i = 0; i < labels.length; i++) {
+            final int value = values == null ? i : values[i];
+            TextView chip = Ui.chip(this, labels[i], value == current, v -> onPick.on(value));
             LinearLayout.LayoutParams p = Ui.lp(-2, -2);
             p.rightMargin = dp(8);
             row.addView(chip, p);
         }
     }
 
-    private void loadFields() {
-        SharedPreferences p = prefs();
-        latE.setText(p.getString("lat", ""));
-        lngE.setText(p.getString("lng", ""));
-        refresh();
+    private void addChip(LinearLayout row, String label, boolean on, Runnable action) {
+        TextView chip = Ui.chip(this, label, on, v -> action.run());
+        LinearLayout.LayoutParams p = Ui.lp(-2, -2);
+        p.rightMargin = dp(8);
+        row.addView(chip, p);
     }
+
+    /**
+     * Preset durations plus a Custom option. A value that matches no preset gets its own
+     * selected chip, so what is set is always on screen.
+     */
+    private void offsetChips(LinearLayout row, int[] presets, int current, String title, Pick onPick) {
+        row.removeAllViews();
+        boolean matched = false;
+        for (int v : presets) if (v == current) matched = true;
+        for (int v : presets) {
+            final int value = v;
+            addChip(row, Scheduler.humanMinutes(v), v == current, () -> onPick.on(value));
+        }
+        if (!matched) {
+            addChip(row, Scheduler.humanMinutes(current), true, () -> askCustom(title, current, onPick));
+        }
+        addChip(row, "Custom…", false, () -> askCustom(title, current, onPick));
+    }
+
+    private void askCustom(String title, int current, Pick onPick) {
+        EditText input = Ui.input(this, "Minutes, e.g. 75");
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setText(String.valueOf(current));
+        input.setSelection(input.getText().length());
+
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(22), dp(10), dp(22), 0);
+        box.addView(input);
+
+        new AlertDialog.Builder(this, Ui.dark ? android.R.style.Theme_Material_Dialog_Alert
+                : android.R.style.Theme_Material_Light_Dialog_Alert)
+                .setTitle(title)
+                .setMessage("In minutes — 90 means 1 hour 30 min.")
+                .setView(box)
+                .setPositiveButton("Set", (d, w) -> {
+                    try {
+                        onPick.on(Integer.parseInt(input.getText().toString().trim()));
+                    } catch (Exception e) {
+                        toast("Type a number of minutes");
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private static String[] minuteLabels(int[] values) {
+        String[] out = new String[values.length];
+        for (int i = 0; i < values.length; i++) {
+            out[i] = values[i] == 0 ? "Off" : values[i] + " min";
+        }
+        return out;
+    }
+
+    // ---------------- state ----------------
 
     private void refresh() {
         SharedPreferences p = prefs();
-        showUpdateButton();
-        String ready = Updater.available(this);
-        if (ready != null) updateStatus.setText("Version " + ready + " is ready to install");
+
         placeView.setText(Scheduler.hasLocation(this)
-                ? "📍  " + p.getString("place", "Custom location")
+                ? p.getString("place", "Custom location")
                 + String.format(Locale.US, "  (%.3f, %.3f)", Scheduler.lat(this), Scheduler.lng(this))
-                : "📍  Location not set yet");
+                : "No city set yet");
+
         String name = p.getString("adhan_name", null);
         soundView.setText("Current sound: " + (name != null ? name : "your phone's alarm tone"));
-        paintChips(preRow, PRE_CHOICES, p.getInt("pre", 10), true, v -> {
+
+        chips(preRow, minuteLabels(PRE_CHOICES), PRE_CHOICES, p.getInt("pre", 10), v -> {
             prefs().edit().putInt("pre", v).apply();
             reschedule(v == 0 ? "Heads-up turned off" : "Heads-up set to " + v + " min before");
             refresh();
         });
-        paintChips(nagRow, NAG_CHOICES, Scheduler.nagMinutes(this), true, v -> {
+        chips(nagRow, minuteLabels(NAG_CHOICES), NAG_CHOICES, Scheduler.nagMinutes(this), v -> {
             prefs().edit().putInt("nag", v).apply();
             toast("Repeating every " + v + " min");
             refresh();
         });
+
+        paintDhuha();
+        paintQiyam();
+
+        chips(themeRow, Ui.THEME_NAMES, null, Ui.themeChoice(this), v -> {
+            prefs().edit().putInt("theme", v).apply();
+            recreate();                              // redraw this screen in the new theme at once
+        });
+
+        showUpdateButton();
+        String ready = Updater.available(this);
+        if (ready != null) updateStatus.setText("Version " + ready + " is ready to install");
+    }
+
+    private void paintQiyam() {
+        int mode = prefs().getInt("qiyam", 0);
+        boolean on = mode > 0;
+        qiyamOptions.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (qiyamSwitch.isChecked() != on) qiyamSwitch.setChecked(on);
+        if (!on) return;
+
+        String[] labels = {Scheduler.QIYAM_MODES[1], Scheduler.QIYAM_MODES[2], Scheduler.QIYAM_MODES[3]};
+        chips(qiyamRow, labels, new int[]{1, 2, 3}, mode, v -> {
+            prefs().edit().putInt("qiyam", v).putInt("qiyam_mode", v).apply();
+            Scheduler.scheduleQiyam(this);
+            paintQiyam();
+        });
+
+        qiyamBeforeBox.setVisibility(mode == 3 ? View.VISIBLE : View.GONE);
+        if (mode == 3) {
+            offsetChips(qiyamBeforeRow, Scheduler.QIYAM_BEFORE, Scheduler.qiyamBefore(this),
+                    "How long before Fajr", v -> {
+                prefs().edit().putInt("qiyam_before", v).apply();
+                Scheduler.scheduleQiyam(this);
+                paintQiyam();
+            });
+        }
+
+        long next = Scheduler.nextQiyam(this, System.currentTimeMillis());
+        qiyamHint.setText(next > 0 ? "Next reminder at " + Scheduler.fmt(next)
+                : Scheduler.hasLocation(this) ? "No night window tonight at this latitude"
+                : "Set your city to see the time");
+    }
+
+    private void paintDhuha() {
+        int mode = prefs().getInt("dhuha", 0);
+        boolean on = mode > 0;
+        dhuhaOptions.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (dhuhaSwitch.isChecked() != on) dhuhaSwitch.setChecked(on);
+        if (!on) return;
+
+        chips(dhuhaRow, new String[]{Scheduler.DHUHA_MODES[1], Scheduler.DHUHA_MODES[2]},
+                new int[]{1, 2}, mode, v -> {
+            prefs().edit().putInt("dhuha", v).putInt("dhuha_mode", v).apply();
+            Scheduler.scheduleDhuha(this);
+            paintDhuha();
+        });
+
+        dhuhaAfterBox.setVisibility(mode == 1 ? View.VISIBLE : View.GONE);
+        if (mode == 1) {
+            offsetChips(dhuhaAfterRow, Scheduler.DHUHA_AFTER, Scheduler.dhuhaAfter(this),
+                    "How long after sunrise", v -> {
+                prefs().edit().putInt("dhuha_after", v).apply();
+                Scheduler.scheduleDhuha(this);
+                paintDhuha();
+            });
+        }
+
+        long next = Scheduler.nextDhuha(this, System.currentTimeMillis());
+        dhuhaHint.setText(next > 0 ? "Next reminder at " + Scheduler.fmt(next)
+                : Scheduler.hasLocation(this) ? "No sunrise today at this latitude"
+                : "Set your city to see the time");
+    }
+
+    private void setDhuhaEnabled(boolean on) {
+        int mode = Math.max(1, Math.min(2, prefs().getInt("dhuha_mode", 1)));
+        prefs().edit().putInt("dhuha", on ? mode : 0).apply();
+        Scheduler.scheduleDhuha(this);
+        paintDhuha();
+    }
+
+    private void setQiyamEnabled(boolean on) {
+        int mode = Math.max(1, Math.min(3, prefs().getInt("qiyam_mode", 1)));
+        prefs().edit().putInt("qiyam", on ? mode : 0).apply();
+        Scheduler.scheduleQiyam(this);
+        paintQiyam();
+    }
+
+    private void reschedule(String msg) {
+        Scheduler.scheduleNext(this, System.currentTimeMillis());
+        Scheduler.scheduleQiyam(this);
+        Scheduler.scheduleDhuha(this);
+        toast(msg);
     }
 
     private void checkUpdate() {
@@ -346,40 +520,21 @@ public class SettingsActivity extends Activity {
     }
 
     private void showUpdateButton() {
-        String version = Updater.available(this);
-        updateButton.setVisibility(version == null ? View.GONE : View.VISIBLE);
-    }
-
-    private void reschedule(String msg) {
-        Scheduler.scheduleNext(this, System.currentTimeMillis());
-        toast(msg);
+        updateButton.setVisibility(Updater.available(this) == null ? View.GONE : View.VISIBLE);
     }
 
     // ---------------- location ----------------
-
-    private void applyCoords() {
-        String la = latE.getText().toString().trim().replace(',', '.');
-        String lo = lngE.getText().toString().trim().replace(',', '.');
-        if (la.isEmpty() || lo.isEmpty()) { toast("Fill in both latitude and longitude"); return; }
-        try {
-            double lat = Double.parseDouble(la), lng = Double.parseDouble(lo);
-            if (Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new NumberFormatException();
-            setPlace("Custom location", lat, lng);
-        } catch (NumberFormatException ex) {
-            toast("Those coordinates don't look right");
-        }
-    }
 
     private void setPlace(String name, double lat, double lng) {
         prefs().edit()
                 .putString("lat", String.format(Locale.US, "%.4f", lat))
                 .putString("lng", String.format(Locale.US, "%.4f", lng))
-                .putString("place", name).apply();
-        latE.setText(String.format(Locale.US, "%.4f", lat));
-        lngE.setText(String.format(Locale.US, "%.4f", lng));
+                .putString("place", name == null ? "Selected location" : name).apply();
         Scheduler.scheduleNext(this, System.currentTimeMillis());
+        Scheduler.scheduleQiyam(this);
+        Scheduler.scheduleDhuha(this);
         refresh();
-        toast("Location set: " + name);
+        toast("Location set: " + (name == null ? "selected location" : name));
     }
 
     private static String placeName(Address a) {
@@ -388,52 +543,6 @@ public class SettingsActivity extends Activity {
         String country = a.getCountryName();
         if (city == null) return country != null ? country : "Selected location";
         return country != null ? city + ", " + country : city;
-    }
-
-    @SuppressWarnings("deprecation")
-    private void searchCity() {
-        String q = cityE.getText().toString().trim();
-        if (q.isEmpty()) { toast("Type a city name"); return; }
-        if (!Geocoder.isPresent()) {
-            toast("City search isn't available here — use GPS or coordinates");
-            return;
-        }
-        toast("Searching…");
-        new Thread(() -> {
-            List<Address> res = null;
-            try { res = new Geocoder(this, Locale.getDefault()).getFromLocationName(q, 6); }
-            catch (Exception ignored) { }
-            final List<Address> found = res;
-            runOnUiThread(() -> showResults(found));
-        }).start();
-    }
-
-    private void showResults(List<Address> res) {
-        if (res == null || res.isEmpty()) {
-            toast("No match (needs internet). Try \"City, Country\".");
-            return;
-        }
-        List<Address> ok = new ArrayList<>();
-        for (Address a : res) if (a.hasLatitude() && a.hasLongitude()) ok.add(a);
-        if (ok.isEmpty()) { toast("No match with coordinates"); return; }
-        if (ok.size() == 1) {
-            Address a = ok.get(0);
-            setPlace(placeName(a), a.getLatitude(), a.getLongitude());
-            return;
-        }
-        String[] names = new String[ok.size()];
-        for (int k = 0; k < ok.size(); k++) {
-            Address a = ok.get(k);
-            String region = a.getAdminArea() != null ? " (" + a.getAdminArea() + ")" : "";
-            names[k] = placeName(a) + region;
-        }
-        new AlertDialog.Builder(this, Ui.dark ? android.R.style.Theme_Material_Dialog_Alert
-                : android.R.style.Theme_Material_Light_Dialog_Alert)
-                .setTitle("Which one?")
-                .setItems(names, (d, w) -> {
-                    Address a = ok.get(w);
-                    setPlace(placeName(a), a.getLatitude(), a.getLongitude());
-                }).show();
     }
 
     private void askLocation() {
@@ -499,7 +608,7 @@ public class SettingsActivity extends Activity {
             boolean ok = false;
             for (int r : res) ok |= r == PackageManager.PERMISSION_GRANTED;
             if (ok) fetchLocation();
-            else toast("No location permission — search your city instead");
+            else toast("No location permission — pick your city from the list instead");
         }
     }
 
@@ -539,7 +648,7 @@ public class SettingsActivity extends Activity {
         } catch (Exception ignored) { }
         prefs().edit().putString("adhan_uri", u.toString()).putString("adhan_name", name)
                 .putBoolean("adhan_on", true).apply();
-        adhanSw.setChecked(true);
+        adhanSwitch.setChecked(true);
         refresh();
         toast("Adhan sound set");
     }
@@ -549,7 +658,7 @@ public class SettingsActivity extends Activity {
     private void askBattery() {
         PowerManager pm = getSystemService(PowerManager.class);
         if (pm.isIgnoringBatteryOptimizations(getPackageName())) {
-            toast("Already allowed ✓");
+            toast("Already allowed");
             return;
         }
         try {
@@ -561,7 +670,7 @@ public class SettingsActivity extends Activity {
     }
 
     private void testNow() {
-        if (!Scheduler.hasLocation(this)) { toast("Set your location first"); return; }
+        if (!Scheduler.hasLocation(this)) { toast("Choose your city first"); return; }
         long now = System.currentTimeMillis();
         long[] t = Scheduler.timesFor(this, Calendar.getInstance());
         int i = 0;

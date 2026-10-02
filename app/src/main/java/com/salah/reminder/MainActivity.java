@@ -3,6 +3,7 @@ package com.salah.reminder;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
+import android.app.AlertDialog;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
@@ -31,7 +32,7 @@ import java.util.Date;
 import java.util.Locale;
 
 /** Home: today's prayer times, a live countdown to the next one, and the Qibla shortcut. */
-public class MainActivity extends Activity {
+public class MainActivity extends ThemedActivity {
     private static final int RQ_NOTIF = 1;
     static final String[] GLYPHS = {"🌄", "🌞", "⛅", "🌆", "🌙"};
 
@@ -55,7 +56,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        Ui.apply(this);
         Scheduler.ensureChannels(this);
         buildUi();
         if (Build.VERSION.SDK_INT >= 33
@@ -105,7 +105,8 @@ public class MainActivity extends Activity {
         dateView.setPadding(0, dp(3), 0, 0);
         titles.addView(dateView);
         head.addView(titles, Ui.lp(0, -2, 1));
-        head.addView(Ui.iconButton(this, "⚙", v -> open(SettingsActivity.class)));
+        head.addView(Ui.iconButton(this, R.drawable.ic_settings, "Settings",
+                v -> open(SettingsActivity.class)));
         root.addView(head, Ui.lp(-1, -2));
 
         // hero
@@ -202,7 +203,10 @@ public class MainActivity extends Activity {
         ring.set(span(prev, nt, now), ringLabel(Math.max(0, nt - now)));
 
         // everything below changes at most once a minute, or when a prayer is marked
-        String key = (now / 60000) + "|" + ni + "|" + nt + "|" + stateMask(now);
+        String key = (now / 60000) + "|" + ni + "|" + nt + "|" + stateMask(now)
+                + "|" + p.getInt("qiyam", 0) + "|" + p.getInt("qiyam_before", 60)
+                + "|" + p.getInt("dhuha", 0) + "|" + p.getInt("dhuha_after", 20)
+                + "|" + Updater.available(this);
         if (key.equals(shown)) return;
         shown = key;
 
@@ -320,7 +324,7 @@ public class MainActivity extends Activity {
                     Scheduler.onPrayed(this, idx);
                     shown = "";
                     paint();
-                    toast(PrayerCalc.NAMES[idx] + " marked as prayed");
+                    sayDua();
                 });
                 row.addView(mark);
             } else if (done) {
@@ -342,6 +346,33 @@ public class MainActivity extends Activity {
             rp.topMargin = i == 0 ? 0 : dp(2);
             listCard.addView(row, rp);
         }
+        paintExtraRows(now);
+    }
+
+    /** The optional prayers, under a divider, only while their reminders are switched on. */
+    private void paintExtraRows(long now) {
+        long dhuha = Scheduler.nextDhuha(this, now);
+        long qiyam = Scheduler.nextQiyam(this, now);
+        if (dhuha <= 0 && qiyam <= 0) return;
+        listCard.addView(Ui.divider(this));
+        if (dhuha > 0) extraRow("🌅", "Dhuha", Scheduler.dhuhaLabel(this), dhuha);
+        if (qiyam > 0) extraRow("🌃", "Qiyam al-Layl", Scheduler.qiyamLabel(this), qiyam);
+    }
+
+    private void extraRow(String glyph, String name, String detail, long at) {
+        LinearLayout row = Ui.rowOf(this);
+        row.setPadding(dp(10), dp(10), dp(12), dp(10));
+        row.addView(Ui.badge(this, glyph, Ui.SURFACE_2, Ui.TEXT, 38));
+
+        LinearLayout col = Ui.column(this);
+        col.setPadding(dp(12), 0, dp(8), 0);
+        col.addView(Ui.text(this, name, 16, Ui.TEXT, Ui.MEDIUM));
+        TextView sub = Ui.text(this, detail, 12, Ui.MUTED, null);
+        sub.setPadding(0, dp(2), 0, 0);
+        col.addView(sub);
+        row.addView(col, Ui.lp(0, -2, 1));
+        row.addView(Ui.text(this, Scheduler.fmt(at), 16.5f, Ui.TEXT, Ui.MEDIUM));
+        listCard.addView(row, Ui.lp(-1, -2));
     }
 
     /** Shows the single most important thing that could stop the adhan firing. */
@@ -413,6 +444,21 @@ public class MainActivity extends Activity {
         if (mins >= 60) return String.format(Locale.US, "%dh %02dm", mins / 60, mins % 60);
         if (mins >= 1) return mins + " min";
         return "under a minute";
+    }
+
+    /** Shown straight after marking a prayer prayed. */
+    private void sayDua() {
+        getSystemService(NotificationManager.class).cancel(Scheduler.NID_DUA);
+        try {
+            new AlertDialog.Builder(this, Ui.dark ? android.R.style.Theme_Material_Dialog_Alert
+                    : android.R.style.Theme_Material_Light_Dialog_Alert)
+                    .setTitle(Scheduler.DUA_AR)
+                    .setMessage(Scheduler.DUA_EN + "\n\n" + Scheduler.DUA_MEANING)
+                    .setPositiveButton("Ameen", null)
+                    .show();
+        } catch (Exception e) {
+            toast(Scheduler.DUA_EN);
+        }
     }
 
     private void toast(String s) {

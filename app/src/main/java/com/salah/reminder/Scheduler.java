@@ -23,16 +23,40 @@ public class Scheduler {
     static final String A_NAG = "com.salah.reminder.NAG";
     static final String A_PRAYED = "com.salah.reminder.PRAYED";
     static final String A_REPIN = "com.salah.reminder.REPIN";
+    static final String A_QIYAM = "com.salah.reminder.QIYAM";
+    static final String A_DHUHA = "com.salah.reminder.DHUHA";
 
     static final String CH_ALERT = "prayer_alert_v1";   // nag reminders (sound)
     static final String CH_PIN = "prayer_pinned_v1";    // pinned card (silent)
     static final String CH_PRE = "prayer_pre_v1";       // "Asr in 10 min" heads-up
     static final String CH_ADHAN = "adhan_v1";          // adhan player card
+    static final String CH_QIYAM = "qiyam_v1";          // night prayer reminder
+    static final String CH_DHUHA = "dhuha_v1";          // forenoon prayer reminder
 
     static final int ACCENT = 0xFF34D8A5;
 
-    static final int RC_PRAYER = 100, RC_PRE = 101, RC_NAG = 200;
-    static final int NID_PRE = 900, NID_ADHAN = 2000;
+    static final int RC_PRAYER = 100, RC_PRE = 101, RC_NAG = 200, RC_QIYAM = 102, RC_DHUHA = 103;
+    static final int NID_PRE = 900, NID_QIYAM = 950, NID_DHUHA = 960, NID_DUA = 970;
+    static final int NID_ADHAN = 2000;
+
+    /** Qiyam al-Layl reminder modes, in the order the settings screen shows them. */
+    /** Said after a prayer: "may Allah accept it from us and from you". */
+    static final String DUA_AR = "تَقبَّلَ اللهُ "
+            + "مِنّا وَمِنكم";
+    static final String DUA_EN = "Taqabbal Allahu minna wa minkum";
+    static final String DUA_MEANING = "May Allah accept it from us and from you.";
+
+    static final String[] QIYAM_MODES = {"Off", "Last third of the night", "Middle of the night",
+            "Before Fajr"};
+
+    /** How long before Fajr the "Before Fajr" mode can be set to, in minutes. */
+    static final int[] QIYAM_BEFORE = {30, 60, 90, 120, 180, 240};
+
+    /** Dhuha (forenoon) reminder modes, in the order the settings screen shows them. */
+    static final String[] DHUHA_MODES = {"Off", "After sunrise", "Mid-morning"};
+
+    /** How long after sunrise the "After sunrise" mode can be set to, in minutes. */
+    static final int[] DHUHA_AFTER = {15, 20, 30, 45, 60, 90};
 
     static SharedPreferences prefs(Context c) {
         return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -72,6 +96,168 @@ public class Scheduler {
             day.add(Calendar.DAY_OF_MONTH, -1);
         }
         return now;
+    }
+
+    /**
+     * When the chosen part of the night begins, for the night that starts on {@code day}.
+     * The night runs from that day's Maghrib to the next day's Fajr. Returns 0 if it can't
+     * be worked out (polar summer, say).
+     */
+    static long qiyamTime(Context c, Calendar day, int mode) {
+        if (mode <= 0 || !hasLocation(c)) return 0;
+        Calendar next = (Calendar) day.clone();
+        next.add(Calendar.DAY_OF_MONTH, 1);
+        long maghrib = timesFor(c, day)[3];
+        long fajr = timesFor(c, next)[0];
+        long night = fajr - maghrib;
+        if (night <= 0) return 0;
+        switch (mode) {
+            case 1: return fajr - night / 3;         // last third
+            case 2: return maghrib + night / 2;      // midpoint
+            case 3: return fajr - qiyamBefore(c) * 60000L;
+            default: return 0;
+        }
+    }
+
+    static int qiyamBefore(Context c) {
+        int m = prefs(c).getInt("qiyam_before", 60);
+        return Math.max(5, Math.min(600, m));
+    }
+
+    /** "Last third of the night", or "1 hour 30 min before Fajr" for the custom mode. */
+    static String qiyamLabel(Context c) {
+        int mode = prefs(c).getInt("qiyam", 0);
+        if (mode == 3) return humanMinutes(qiyamBefore(c)) + " before Fajr";
+        return QIYAM_MODES[Math.max(0, Math.min(mode, QIYAM_MODES.length - 1))];
+    }
+
+    static String humanMinutes(int m) {
+        if (m < 60) return m + " min";
+        int h = m / 60, rest = m % 60;
+        String hours = h + (h == 1 ? " hour" : " hours");
+        return rest == 0 ? hours : hours + " " + rest + " min";
+    }
+
+    /** The next Qiyam time after {@code now}, or 0 when the reminder is off. */
+    static long nextQiyam(Context c, long now) {
+        int mode = prefs(c).getInt("qiyam", 0);
+        if (mode <= 0 || !hasLocation(c)) return 0;
+        Calendar day = Calendar.getInstance();
+        day.setTimeInMillis(now);
+        day.add(Calendar.DAY_OF_MONTH, -1);          // last night's window may still be running
+        for (int k = 0; k < 3; k++) {
+            long t = qiyamTime(c, day, mode);
+            if (t > now + 1000) return t;
+            day.add(Calendar.DAY_OF_MONTH, 1);
+        }
+        return 0;
+    }
+
+    // ---------- dhuha (forenoon prayer) ----------
+
+    static int dhuhaAfter(Context c) {
+        int m = prefs(c).getInt("dhuha_after", 20);
+        return Math.max(5, Math.min(240, m));
+    }
+
+    static String dhuhaLabel(Context c) {
+        int mode = prefs(c).getInt("dhuha", 0);
+        if (mode == 1) return humanMinutes(dhuhaAfter(c)) + " after sunrise";
+        return DHUHA_MODES[Math.max(0, Math.min(mode, DHUHA_MODES.length - 1))];
+    }
+
+    /**
+     * When Dhuha begins on {@code day}: a chosen gap after sunrise, or halfway between sunrise
+     * and Dhuhr. Returns 0 when the sun doesn't rise that day.
+     */
+    static long dhuhaTime(Context c, Calendar day, int mode) {
+        if (mode <= 0 || !hasLocation(c)) return 0;
+        long sunrise = PrayerCalc.sunrise(day, lat(c), lng(c));
+        if (sunrise == 0) return 0;
+        long dhuhr = timesFor(c, day)[1];
+        switch (mode) {
+            case 1: return sunrise + dhuhaAfter(c) * 60000L;
+            case 2: return dhuhr > sunrise ? sunrise + (dhuhr - sunrise) / 2 : 0;
+            default: return 0;
+        }
+    }
+
+    /** The next Dhuha time after {@code now}, or 0 when the reminder is off. */
+    static long nextDhuha(Context c, long now) {
+        int mode = prefs(c).getInt("dhuha", 0);
+        if (mode <= 0 || !hasLocation(c)) return 0;
+        Calendar day = Calendar.getInstance();
+        day.setTimeInMillis(now);
+        for (int k = 0; k < 3; k++) {
+            long t = dhuhaTime(c, day, mode);
+            if (t > now + 1000) return t;
+            day.add(Calendar.DAY_OF_MONTH, 1);
+        }
+        return 0;
+    }
+
+    static void scheduleDhuha(Context c) {
+        AlarmManager am = c.getSystemService(AlarmManager.class);
+        am.cancel(bcast(c, RC_DHUHA, A_DHUHA, 0, 0));
+        long t = nextDhuha(c, System.currentTimeMillis());
+        if (t > 0) setExact(c, t, bcast(c, RC_DHUHA, A_DHUHA, 0, t));
+    }
+
+    static void onDhuha(Context c, long t) {
+        ensureChannels(c);
+        if (prefs(c).getInt("dhuha", 0) > 0) {
+            long[] nx = next(c, System.currentTimeMillis());
+            String until = nx != null && nx[0] == 1
+                    ? "Pray it before Dhuhr at " + fmt(nx[1]) : "Pray it before Dhuhr";
+            Notification n = new Notification.Builder(c, CH_DHUHA)
+                    .setSmallIcon(R.drawable.ic_notif)
+                    .setContentTitle("Dhuha")
+                    .setContentText(dhuhaLabel(c) + " \u00b7 " + until)
+                    .setStyle(new Notification.BigTextStyle().bigText(
+                            "The time for Dhuha has come in \u2014 " + dhuhaLabel(c).toLowerCase()
+                                    + ". " + until + "."))
+                    .setColor(ACCENT)
+                    .setContentIntent(openApp(c, 810))
+                    .setAutoCancel(true)
+                    .setCategory(Notification.CATEGORY_REMINDER)
+                    .setVisibility(Notification.VISIBILITY_PUBLIC)
+                    .build();
+            c.getSystemService(NotificationManager.class).notify(NID_DHUHA, n);
+        }
+        scheduleDhuha(c);
+    }
+
+    static void scheduleQiyam(Context c) {
+        AlarmManager am = c.getSystemService(AlarmManager.class);
+        am.cancel(bcast(c, RC_QIYAM, A_QIYAM, 0, 0));
+        long t = nextQiyam(c, System.currentTimeMillis());
+        if (t > 0) setExact(c, t, bcast(c, RC_QIYAM, A_QIYAM, 0, t));
+    }
+
+    static void onQiyam(Context c, long t) {
+        ensureChannels(c);
+        int mode = prefs(c).getInt("qiyam", 0);
+        if (mode > 0) {
+            long fajr = 0;
+            long[] nx = next(c, System.currentTimeMillis());
+            if (nx != null && nx[0] == 0) fajr = nx[1];
+            String when = fajr > 0 ? "Fajr is at " + fmt(fajr) : "Pray before Fajr";
+            Notification n = new Notification.Builder(c, CH_QIYAM)
+                    .setSmallIcon(R.drawable.ic_notif)
+                    .setContentTitle("Qiyam al-Layl")
+                    .setContentText(qiyamLabel(c) + " \u00b7 " + when)
+                    .setStyle(new Notification.BigTextStyle().bigText(
+                            "Time to stand for the night prayer \u2014 " + qiyamLabel(c).toLowerCase()
+                                    + ". " + when + "."))
+                    .setColor(ACCENT)
+                    .setContentIntent(openApp(c, 800))
+                    .setAutoCancel(true)
+                    .setCategory(Notification.CATEGORY_REMINDER)
+                    .setVisibility(Notification.VISIBILITY_PUBLIC)
+                    .build();
+            c.getSystemService(NotificationManager.class).notify(NID_QIYAM, n);
+        }
+        scheduleQiyam(c);
     }
 
     static String fmt(long t) {
@@ -128,6 +314,8 @@ public class Scheduler {
 
     static void rescheduleAll(Context c) {
         scheduleNext(c, System.currentTimeMillis());
+        scheduleQiyam(c);
+        scheduleDhuha(c);
         int nagI = prefs(c).getInt("nag_i", -1);
         for (int i = 0; i < 5; i++) if (pending(c, i) != 0) post(c, i, false);
         if (nagI >= 0 && pending(c, nagI) != 0) scheduleNag(c, nagI);
@@ -187,6 +375,26 @@ public class Scheduler {
         e.apply();
         c.getSystemService(NotificationManager.class).cancel(1000 + i);
         AdhanService.stop(c);
+        sayDua(c);
+    }
+
+    /** A quiet, self-clearing card with the dua, for when "Prayed" is tapped from the shade. */
+    static void sayDua(Context c) {
+        ensureChannels(c);
+        Notification n = new Notification.Builder(c, CH_PIN)
+                .setSmallIcon(R.drawable.ic_notif)
+                .setContentTitle(DUA_AR)
+                .setContentText(DUA_EN)
+                .setStyle(new Notification.BigTextStyle()
+                        .setBigContentTitle(DUA_AR)
+                        .bigText(DUA_EN + "\n" + DUA_MEANING))
+                .setColor(ACCENT)
+                .setContentIntent(openApp(c, 820))
+                .setAutoCancel(true)
+                .setTimeoutAfter(180000)             // clears itself after three minutes
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .build();
+        c.getSystemService(NotificationManager.class).notify(NID_DUA, n);
     }
 
     static void onRepin(Context c, int i) {
@@ -219,6 +427,16 @@ public class Scheduler {
                 NotificationManager.IMPORTANCE_LOW);
         ad.setSound(null, null);
         nm.createNotificationChannel(ad);
+
+        NotificationChannel qiyam = new NotificationChannel(CH_QIYAM, "Qiyam al-Layl",
+                NotificationManager.IMPORTANCE_HIGH);
+        qiyam.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(qiyam);
+
+        NotificationChannel dhuha = new NotificationChannel(CH_DHUHA, "Dhuha",
+                NotificationManager.IMPORTANCE_DEFAULT);
+        dhuha.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(dhuha);
     }
 
     static PendingIntent openApp(Context c, int code) {

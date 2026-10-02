@@ -18,9 +18,13 @@ confirm you've prayed.
   comes straight back if your phone dismisses it.
 - **Repeat nagging** — it reminds you again every few minutes until you confirm.
 - **Qibla compass** — "turn left / turn right", turning green and buzzing when you're facing Makkah.
+- **Qiyam al-Layl** — an optional night-prayer reminder at the last third of the night, the
+  middle of the night, or however long before Fajr you choose.
+- **Dhuha** — an optional forenoon reminder, a set time after sunrise or at mid-morning.
+- **Taqabbal Allahu minna wa minkum** — shown when you mark a prayer done.
 - **Updates itself** — it checks GitHub for a newer build, shows a banner on the home screen,
   and installs it when you tap. No store, no sideloading dance.
-- **Follows your system theme** — light or dark, whichever your phone is set to.
+- **Light, dark, or whatever your phone is set to** — your choice, in Settings.
 - **Survives** reboots, app updates, and time-zone changes.
 
 ## The screens
@@ -32,8 +36,9 @@ anything on your phone could delay the adhan.
 **Choose your city** — a country list, then the cities in it, biggest first. A filter box is
 there if you would rather type.
 
-**Settings** — location, calculation method, Asr school, adhan sound, reminder timings, and
-the reliability switches. Everything saves the moment you change it; there is no Save button.
+**Settings** — location, calculation method, Asr school, adhan sound, reminder timings, the
+optional Dhuha and Qiyam reminders, the theme, and the reliability switches. Everything saves
+the moment you change it; there is no Save button.
 
 **Qibla** — a compass dial with a gold needle pointing at the Kaaba.
 
@@ -89,11 +94,16 @@ not install over a release build.
 (git-ignored, nothing installed system-wide) and installs straight onto a plugged-in phone:
 
 ```sh
-./scripts/dev.sh setup      # one-off, ~450 MB
+./scripts/dev.sh emulator   # open a simulated phone on this computer, app installed
+./scripts/dev.sh install    # build + install + launch on a plugged-in phone
 ./scripts/dev.sh build      # -> app/build/outputs/apk/debug/app-debug.apk
-./scripts/dev.sh install    # build + install + launch on the connected phone
 ./scripts/dev.sh logs       # follow the app's logcat
+./scripts/dev.sh stop       # close the emulator
 ```
+
+An Android app is not served over localhost like a website — it needs a phone, real or
+simulated. `emulator` gives you the simulated one in a window you can click; the first run
+fetches the emulator and an Android 14 image (~1.5 GB, once).
 
 For `install`, turn on **Developer options → USB debugging** on the phone and tap *Allow*
 when it asks. For wireless, use **Wireless debugging** and
@@ -115,6 +125,7 @@ No third-party libraries — the whole app is the Android framework plus the fil
 | `SettingsActivity` | all configuration |
 | `QiblaActivity` | compass |
 | `Ui` | colours, type and the shared view builders |
+| `ThemedActivity` | applies the light/dark choice before a screen is built |
 | `PrayerCalc` | astronomy: prayer times and Qibla bearing |
 | `Scheduler` | alarms, state and notifications |
 | `AdhanService` | plays the adhan |

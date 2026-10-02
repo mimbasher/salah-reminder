@@ -41,12 +41,18 @@ final class Updater {
 
     // ---------------- version ----------------
 
+    private static String installed;
+
+    /** Our own versionName, looked up once per process. */
     static String installedVersion(Context c) {
-        try {
-            return c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName;
-        } catch (Exception e) {
-            return "0";
+        if (installed == null) {
+            try {
+                installed = c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName;
+            } catch (Exception e) {
+                installed = "0";
+            }
         }
+        return installed;
     }
 
     /** True when {@code remote} is a higher dotted-number version than {@code local}. */
