@@ -1,27 +1,36 @@
 name: Build APK
+
 on: [push, workflow_dispatch]
+
 permissions:
   contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Build
+
+      - name: Build debug APK
         run: |
-          cd "$(dirname "$(find . -name settings.gradle -not -path './.git/*' | head -1)")"
           gradle assembleDebug
-          cp "$(find . -name app-debug.apk | head -1)" "$GITHUB_WORKSPACE/SalahReminder.apk"
-      - uses: softprops/action-gh-release@v2
+          cp app/build/outputs/apk/debug/app-debug.apk SalahReminder.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Salah Reminder v1.0.${{ github.run_number }}
+          tag_name: v2.0.${{ github.run_number }}
+          name: Salah Reminder v2.0.${{ github.run_number }}
           files: SalahReminder.apk
           make_latest: true
+          body: |
+            Install: download **SalahReminder.apk** below and open it on your phone.

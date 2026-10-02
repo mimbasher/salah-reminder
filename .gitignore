@@ -1,0 +1,10 @@
+# Build output
+build/
+.gradle/
+*.apk
+*.ap_
+
+# Local machine config (never commit: contains absolute SDK paths)
+local.properties
+.idea/
+*.iml

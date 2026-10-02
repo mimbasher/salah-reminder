@@ -29,6 +29,8 @@ public class Scheduler {
     static final String CH_PRE = "prayer_pre_v1";       // "Asr in 10 min" heads-up
     static final String CH_ADHAN = "adhan_v1";          // adhan player card
 
+    static final int ACCENT = 0xFF34D8A5;
+
     static final int RC_PRAYER = 100, RC_PRE = 101, RC_NAG = 200;
     static final int NID_PRE = 900, NID_ADHAN = 2000;
 
@@ -44,6 +46,32 @@ public class Scheduler {
     static long[] timesFor(Context c, Calendar day) {
         SharedPreferences p = prefs(c);
         return PrayerCalc.times(day, lat(c), lng(c), p.getInt("method", 0), p.getBoolean("hanafi", false));
+    }
+
+    /** {index, time} of the first prayer after {@code now}, rolling into tomorrow. */
+    static long[] next(Context c, long now) {
+        if (!hasLocation(c)) return null;
+        Calendar day = Calendar.getInstance();
+        day.setTimeInMillis(now);
+        for (int k = 0; k < 2; k++) {
+            long[] t = timesFor(c, day);
+            for (int i = 0; i < 5; i++) if (t[i] > now) return new long[]{i, t[i]};
+            day.add(Calendar.DAY_OF_MONTH, 1);
+        }
+        return null;
+    }
+
+    /** The most recent prayer at or before {@code now}, reaching back to yesterday's Isha. */
+    static long prevTime(Context c, long now) {
+        if (!hasLocation(c)) return now;
+        Calendar day = Calendar.getInstance();
+        day.setTimeInMillis(now);
+        for (int k = 0; k < 2; k++) {
+            long[] t = timesFor(c, day);
+            for (int i = 4; i >= 0; i--) if (t[i] <= now) return t[i];
+            day.add(Calendar.DAY_OF_MONTH, -1);
+        }
+        return now;
     }
 
     static String fmt(long t) {
@@ -126,6 +154,7 @@ public class Scheduler {
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle(PrayerCalc.NAMES[i] + " in " + mins + " min")
                 .setContentText("Adhan at " + fmt(t) + " — time to get ready")
+                .setColor(ACCENT)
                 .setContentIntent(openApp(c, 600))
                 .setAutoCancel(true)
                 .setCategory(Notification.CATEGORY_REMINDER)
@@ -209,8 +238,12 @@ public class Scheduler {
                 Icon.createWithResource(c, R.drawable.ic_notif), "✓ Prayed", done).build();
         Notification n = new Notification.Builder(c, alert ? CH_ALERT : CH_PIN)
                 .setSmallIcon(R.drawable.ic_notif)
-                .setContentTitle("Time for " + PrayerCalc.NAMES[i])
-                .setContentText("Adhan was at " + fmt(t) + " · tap ✓ Prayed when done")
+                .setContentTitle(PrayerCalc.NAMES[i] + " · " + fmt(t))
+                .setContentText("Tap ✓ Prayed when you have prayed")
+                .setStyle(new Notification.BigTextStyle().bigText(
+                        "It is time for " + PrayerCalc.NAMES[i] + ". This reminder stays here, and "
+                                + "returns every " + nagMinutes(c) + " min, until you tap ✓ Prayed."))
+                .setColor(ACCENT)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setContentIntent(openApp(c, 500 + i))

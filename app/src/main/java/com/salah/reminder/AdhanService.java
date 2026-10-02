@@ -47,6 +47,7 @@ public class AdhanService extends Service {
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle("Adhan — " + PrayerCalc.NAMES[i])
                 .setContentText("Playing adhan")
+                .setColor(Scheduler.ACCENT)
                 .setContentIntent(Scheduler.openApp(this, 701))
                 .addAction(new Notification.Action.Builder(
                         Icon.createWithResource(this, R.drawable.ic_notif), "Stop adhan", stopPi).build())
