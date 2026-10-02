@@ -18,6 +18,11 @@ gradlew
 gradlew.bat
 gradle/wrapper/
 
+# Source audio dropped in the project root — the app's copy lives in res/raw/
+/*.mp3
+/*.wav
+/*.m4a
+
 # Signing material — must never be committed
 keystore.jks
 keystore.properties

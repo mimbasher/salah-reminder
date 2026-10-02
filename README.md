@@ -22,7 +22,8 @@ And the reminder that stays in the notification panel until you confirm:
   once your location is set.
 - **Pick your city from a list** — 34,000 cities are bundled with the app. Tap your country,
   tap your city, done. No typing and no internet; GPS and coordinates still work too.
-- **Your own adhan** — choose any audio file; it plays at the phone's *alarm* volume.
+- **An adhan in the box** — a full adhan ships with the app and plays at the phone's *alarm*
+  volume. Prefer another? Point it at any audio file on your phone.
 - **Heads-up before the adhan** — "Asr in 10 min", with the minutes you choose (or off).
 - **A reminder you can't swipe away** — the card stays until you tap **✓ Prayed**, and
   comes straight back if your phone dismisses it.

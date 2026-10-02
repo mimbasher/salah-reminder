@@ -127,7 +127,7 @@ public class SettingsActivity extends ThemedActivity {
         LinearLayout pickRow = Ui.rowOf(this);
         pickRow.addView(Ui.secondary(this, "Choose a file", v -> pickAudio()), Ui.lp(0, -2, 1));
         pickRow.addView(spacer(), Ui.lp(dp(8), 1));
-        pickRow.addView(Ui.secondary(this, "Use alarm tone", v -> {
+        pickRow.addView(Ui.secondary(this, "Use the built-in adhan", v -> {
             prefs().edit().remove("adhan_uri").remove("adhan_name").apply();
             refresh();
         }), Ui.lp(0, -2, 1));
@@ -402,7 +402,7 @@ public class SettingsActivity extends ThemedActivity {
                 : "No city set yet");
 
         String name = p.getString("adhan_name", null);
-        soundView.setText("Current sound: " + (name != null ? name : "your phone's alarm tone"));
+        soundView.setText("Current sound: " + (name != null ? name : "the adhan built into the app"));
 
         chips(preRow, minuteLabels(PRE_CHOICES), PRE_CHOICES, p.getInt("pre", 10), v -> {
             prefs().edit().putInt("pre", v).apply();

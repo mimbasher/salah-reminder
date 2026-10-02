@@ -4,6 +4,7 @@ import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.drawable.Icon;
@@ -66,29 +67,47 @@ public class AdhanService extends Service {
     private void play() {
         release();
         mp = new MediaPlayer();
-        mp.setAudioAttributes(new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
         String saved = Scheduler.prefs(this).getString("adhan_uri", null);
-        Uri fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        if (fallback == null) fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-        try {
-            mp.setDataSource(this, saved != null ? Uri.parse(saved) : fallback);
-        } catch (Exception e) {
+
+        // In order: the file you chose, the adhan that ships with the app, then whatever the
+        // phone uses for alarms. A chosen file can disappear, or its permission can be lost
+        // when it is moved, so there has to be something behind it.
+        Uri[] candidates = {
+                saved == null ? null : Uri.parse(saved),
+                bundledAdhan(),
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+        };
+        boolean ready = false;
+        for (Uri u : candidates) {
+            if (u == null) continue;
             try {
                 mp.reset();
                 mp.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM).build());
-                mp.setDataSource(this, fallback);
-            } catch (Exception e2) {
-                stopSelf();
-                return;
-            }
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
+                mp.setDataSource(this, u);
+                ready = true;
+                break;
+            } catch (Exception ignored) { }
+        }
+        if (!ready) {
+            stopSelf();
+            return;
         }
         mp.setOnCompletionListener(p -> stopSelf());
         mp.setOnErrorListener((p, w, x) -> { stopSelf(); return true; });
         mp.setOnPreparedListener(MediaPlayer::start);
         mp.prepareAsync();
+    }
+
+    /** The adhan bundled with the app, used until you choose a file of your own. */
+    private Uri bundledAdhan() {
+        return new Uri.Builder()
+                .scheme(ContentResolver.SCHEME_ANDROID_RESOURCE)
+                .authority(getPackageName())
+                .appendPath(String.valueOf(R.raw.adhan))
+                .build();
     }
 
     private void release() {
