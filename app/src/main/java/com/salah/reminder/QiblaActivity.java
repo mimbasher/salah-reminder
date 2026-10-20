@@ -20,6 +20,7 @@ import android.view.Gravity;
 import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -71,7 +72,9 @@ public class QiblaActivity extends ThemedActivity implements SensorEventListener
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(dp(10), dp(8), dp(10), 0);
         root.addView(hint, Ui.lp(-1, -2));
-        setContentView(Ui.centred(this, root));
+        FrameLayout host = Ui.centred(this, root);
+        setContentView(host);
+        Ui.fitSystemBars(host);
 
         if (!Scheduler.hasLocation(this)) {
             status.setText("Set your location first");

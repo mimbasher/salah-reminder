@@ -78,6 +78,7 @@ public class SettingsActivity extends ThemedActivity {
         root.setPadding(dp(18), dp(16), dp(18), dp(36));
         sv.addView(root, Ui.contentLp(this, -2));
         setContentView(sv);
+        Ui.fitSystemBars(sv);
 
         LinearLayout head = Ui.rowOf(this);
         head.addView(Ui.iconButton(this, R.drawable.ic_back, "Back", v -> finish()));

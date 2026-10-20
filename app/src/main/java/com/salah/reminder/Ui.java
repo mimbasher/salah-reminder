@@ -3,12 +3,15 @@ package com.salah.reminder;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.ColorStateList;
+import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -212,6 +215,37 @@ final class Ui {
     }
 
     /** Wraps a screen whose root is set directly, so it is centred on a wide display too. */
+    /**
+     * Keeps a screen clear of the status bar, the navigation bar and any camera cutout.
+     *
+     * Android 15 draws every app that targets API 35 or later edge to edge, behind those bars,
+     * so a screen that does nothing about it puts its first line under the phone's clock. This
+     * adds the bar heights to whatever padding the screen already asked for, and does it again
+     * whenever they change — turning the phone, swapping gestures for three buttons, opening
+     * the keyboard. Pass the view that went to setContentView.
+     */
+    @SuppressWarnings("deprecation")   // the pre-API-30 branch below, on purpose
+    static void fitSystemBars(View v) {
+        final int left = v.getPaddingLeft(), top = v.getPaddingTop();
+        final int right = v.getPaddingRight(), bottom = v.getPaddingBottom();
+        v.setOnApplyWindowInsetsListener((view, insets) -> {
+            int l, t, r, b;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Insets bars = insets.getInsets(WindowInsets.Type.systemBars()
+                        | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+                l = bars.left; t = bars.top; r = bars.right; b = bars.bottom;
+            } else {
+                l = insets.getSystemWindowInsetLeft();
+                t = insets.getSystemWindowInsetTop();
+                r = insets.getSystemWindowInsetRight();
+                b = insets.getSystemWindowInsetBottom();
+            }
+            view.setPadding(left + l, top + t, right + r, bottom + b);
+            return insets;
+        });
+        v.requestApplyInsets();
+    }
+
     static FrameLayout centred(Context c, View content) {
         FrameLayout host = new FrameLayout(c);
         host.setBackgroundColor(BG);

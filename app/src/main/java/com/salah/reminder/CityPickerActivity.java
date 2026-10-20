@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -89,7 +90,9 @@ public class CityPickerActivity extends ThemedActivity {
         list.setOnItemClickListener((p, v, pos, id) -> tapped(rows.get(pos)));
         root.addView(list, Ui.lp(-1, 0, 1));
 
-        setContentView(Ui.centred(this, root));
+        FrameLayout host = Ui.centred(this, root);
+        setContentView(host);
+        Ui.fitSystemBars(host);
 
         if (!query.isEmpty()) search.setText(query);
         if (names == null) new Thread(this::load).start();
