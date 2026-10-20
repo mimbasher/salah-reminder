@@ -1,4 +1,4 @@
-name: Build APK
+name: Build
 
 # Branch pushes only — pushing or moving a tag must not kick off another release build.
 on:
@@ -26,10 +26,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.9"
+          gradle-version: "8.13"
 
       - name: Unit tests
-        run: gradle testDebugUnitTest
+        run: gradle testGithubDebugUnitTest
 
       - name: Restore signing key
         env:
@@ -41,14 +41,27 @@ jobs:
           fi
           printf '%s' "$KEYSTORE_B64" | base64 -d > keystore.jks
 
-      - name: Build signed APK
+      # Two builds from the same source: the APK people download from the releases page,
+      # which can update itself, and the bundle for Google Play, which cannot — Play updates
+      # its own apps, and its policy forbids an app that installs code on its own.
+      - name: Build signed APK and Play bundle
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          gradle assembleRelease -PbuildNumber=${{ github.run_number }}
-          cp app/build/outputs/apk/release/app-release.apk SalahReminder.apk
+          gradle assembleGithubRelease bundlePlayRelease -PbuildNumber=${{ github.run_number }}
+          cp app/build/outputs/apk/github/release/app-github-release.apk SalahReminder.apk
+          cp app/build/outputs/bundle/playRelease/app-play-release.aab SalahReminder-play.aab
+
+      # Not attached to the release: the store copy is uploaded by hand in the Play Console,
+      # and a stray .aab on the releases page is only something to install by mistake.
+      - name: Keep the Play bundle as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-bundle
+          path: SalahReminder-play.aab
+          retention-days: 90
 
       - name: Remove signing key
         if: always()

@@ -30,6 +30,9 @@ import java.nio.charset.StandardCharsets;
  * with Android's own download manager, and hands it to the system installer.
  */
 final class Updater {
+    /** Whether this build can update itself. The Play build's copy of this class says no. */
+    static final boolean SELF_UPDATES = true;
+
     static final String REPO = "mimbasher/salah-reminder";
     private static final String LATEST = "https://api.github.com/repos/" + REPO + "/releases/latest";
     static final String RELEASES_PAGE = "https://github.com/" + REPO + "/releases/latest";

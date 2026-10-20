@@ -2,6 +2,7 @@
 build/
 .gradle/
 *.apk
+*.aab
 *.ap_
 
 # Local machine config (never commit: contains absolute SDK paths)
@@ -13,7 +14,7 @@ local.properties
 .toolchain/
 
 # Gradle wrapper: unused here, and it would pin a third Gradle version.
-# CI pins 8.9 via setup-gradle; scripts/dev.sh fetches its own 8.9 and a JDK 17.
+# CI pins 8.13 via setup-gradle; scripts/dev.sh fetches its own 8.13 and a JDK 17.
 gradlew
 gradlew.bat
 gradle/wrapper/

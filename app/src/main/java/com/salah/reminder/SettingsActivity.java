@@ -284,16 +284,23 @@ public class SettingsActivity extends ThemedActivity {
         LinearLayout app = Ui.card(this);
         app.addView(Ui.text(this, "Version " + Updater.installedVersion(this), 15, Ui.TEXT, Ui.MEDIUM),
                 Ui.lp(-1, -2));
-        updateStatus = Ui.text(this, "Checked automatically when you open the app",
-                12.5f, Ui.MUTED, null);
+        updateStatus = Ui.text(this, Updater.SELF_UPDATES
+                ? "Checked automatically when you open the app"
+                : "Updates arrive through Google Play", 12.5f, Ui.MUTED, null);
         updateStatus.setPadding(0, dp(6), 0, 0);
         app.addView(updateStatus, Ui.lp(-1, -2));
-        app.addView(Ui.secondary(this, "Check for updates now", v -> checkUpdate()), Ui.stacked(this, 12));
         updateButton = Ui.primary(this, "Download and install", v -> Updater.install(this));
         updateButton.setVisibility(View.GONE);
-        app.addView(updateButton, Ui.stacked(this, 10));
-        app.addView(Ui.secondary(this, "Open the releases page",
-                v -> Updater.openReleasesPage(this)), Ui.stacked(this, 10));
+        // The Play build neither checks nor installs anything: Play does both, and its policy
+        // does not allow an app to install code of its own.
+        if (Updater.SELF_UPDATES) {
+            app.addView(Ui.secondary(this, "Check for updates now", v -> checkUpdate()),
+                    Ui.stacked(this, 12));
+            app.addView(updateButton, Ui.stacked(this, 10));
+        }
+        app.addView(Ui.secondary(this, Updater.SELF_UPDATES ? "Open the releases page"
+                : "Open the Play Store page", v -> Updater.openReleasesPage(this)),
+                Ui.stacked(this, 10));
         root.addView(app, Ui.lp(-1, -2));
 
         TextView about = Ui.text(this,

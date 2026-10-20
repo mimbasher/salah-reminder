@@ -19,9 +19,15 @@ And the reminder that stays in the notification panel until you confirm:
 ## What it does
 
 - **Prayer times on your phone** — computed from the sun's position, no internet needed
-  once your location is set.
+  once your location is set. Seventeen calculation methods, standard or Hanafi Asr, and your
+  own Fajr and Isha angles if your authority publishes them.
+- **Times that match your mosque** — nudge each prayer a minute at a time until the app
+  agrees with the timetable on the wall. Published tables round up to the whole minute, and
+  so does this: a prayer is never shown before it has come in.
 - **Pick your city from a list** — 34,000 cities are bundled with the app. Tap your country,
-  tap your city, done. No typing and no internet; GPS and coordinates still work too.
+  tap your city, done. No typing and no internet; GPS and coordinates still work too. Each
+  city carries its own time zone, so Makkah's times stay Makkah's even when your phone is
+  somewhere else.
 - **An adhan in the box** — a full adhan ships with the app and plays at the phone's *alarm*
   volume. Prefer another? Point it at any audio file on your phone.
 - **Heads-up before the adhan** — "Asr in 10 min", with the minutes you choose (or off).
@@ -33,7 +39,8 @@ And the reminder that stays in the notification panel until you confirm:
 - **Qibla compass** — "turn left / turn right", turning green and buzzing when you're facing Makkah.
 - **Works at any latitude** — where the sun doesn't rise or set at all, it takes the timetable
   of the nearest day that does have a real sunrise and sunset (*aqrab al-ayyam*), so the Arctic
-  gets sane times instead of midnight.
+  gets sane times instead of midnight. For the short summer nights in between, choose the
+  angle-based, middle-of-the-night or one-seventh rule.
 - **Qiyam al-Layl** — an optional night-prayer reminder at the last third of the night, the
   middle of the night, or however long before Fajr you choose.
 - **Dhuha** — an optional forenoon reminder, a set time after sunrise or at mid-morning.
@@ -55,11 +62,25 @@ to confirm you prayed it, and tap again to undo.
 **Choose your city** — a country list, then the cities in it, biggest first. A filter box is
 there if you would rather type.
 
-**Settings** — location, calculation method, Asr school, adhan sound, reminder timings, the
-optional Dhuha and Qiyam reminders, the theme, and the reliability switches. Everything saves
-the moment you change it; there is no Save button.
+**Settings** — location, calculation method, Asr school, the short-night rule, per-prayer
+fine-tuning, adhan sound, reminder timings, the optional Dhuha and Qiyam reminders, the theme,
+and the reliability switches. Everything saves the moment you change it; there is no Save
+button.
 
 **Qibla** — a compass dial with a gold needle pointing at the Kaaba.
+
+## How accurate is it?
+
+The astronomy is checked against an independent high-precision solar-position implementation
+and against published timetables; every time agrees to within a minute. Where a method's own
+authority prints extra minutes of its own on top of the astronomy — *temkin* in Turkey, for
+instance — the settings screen says so, and the fine-tuning rows are how you match it.
+
+Two conventions worth knowing:
+
+- Prayer times round **up** to the whole minute, never down. A Maghrib at 17:58:35 is shown
+  as 17:59, because 17:58 would be a time that has not come.
+- Sunrise rounds **down**, for the same reason in reverse: it ends Fajr.
 
 ## Install
 
@@ -86,6 +107,20 @@ always gives the newest version.
 
 You don't need to leave the app running. Android wakes it at each prayer time; between
 times it does nothing and uses no battery.
+
+## Google Play
+
+The same source builds two ways:
+
+| Flavour | What it is | Build |
+| --- | --- | --- |
+| `github` | the APK on the releases page, which updates itself | `gradle assembleGithubRelease` |
+| `play` | the store build: no self-updater, and no internet or install-packages permission at all | `gradle bundlePlayRelease` |
+
+Play updates its own apps and its policy forbids one that installs code itself, so the
+updater is compiled out rather than hidden. [`docs/play-store.md`](docs/play-store.md) has
+the listing copy, the data-safety and exact-alarm answers, and the rest of the checklist;
+[`docs/privacy.md`](docs/privacy.md) is the policy the listing links to.
 
 ## Signing
 
@@ -115,14 +150,15 @@ not install over a release build.
 ```sh
 ./scripts/dev.sh emulator   # open a simulated phone on this computer, app installed
 ./scripts/dev.sh install    # build + install + launch on a plugged-in phone
-./scripts/dev.sh build      # -> app/build/outputs/apk/debug/app-debug.apk
+./scripts/dev.sh build      # -> app/build/outputs/apk/github/debug/app-github-debug.apk
+./scripts/dev.sh bundle     # -> app/build/outputs/bundle/playRelease/app-play-release.aab
 ./scripts/dev.sh logs       # follow the app's logcat
 ./scripts/dev.sh stop       # close the emulator
 ```
 
 An Android app is not served over localhost like a website — it needs a phone, real or
 simulated. `emulator` gives you the simulated one in a window you can click; the first run
-fetches the emulator and an Android 14 image (~1.5 GB, once).
+fetches the emulator and an Android 16 image (~1.5 GB, once).
 
 For `install`, turn on **Developer options → USB debugging** on the phone and tap *Allow*
 when it asks. For wireless, use **Wireless debugging** and
@@ -132,12 +168,12 @@ With your own SDK already installed, plain Gradle works as well:
 
 ```sh
 echo "sdk.dir=/path/to/android-sdk" > local.properties
-gradle assembleDebug
-gradle testDebugUnitTest   # PrayerCalc's unit tests, also run on every CI build
+gradle assembleGithubDebug
+gradle testGithubDebugUnitTest   # PrayerCalc's unit tests, also run on every CI build
 ```
 
-There is no Gradle wrapper on purpose: CI pins Gradle 8.9 and `scripts/dev.sh` fetches its own
-8.9 plus a JDK 17, so a committed `gradlew` would only add a third version to disagree with.
+There is no Gradle wrapper on purpose: CI pins Gradle 8.13 and `scripts/dev.sh` fetches its own
+8.13 plus a JDK 17, so a committed `gradlew` would only add a third version to disagree with.
 
 No third-party libraries — the whole app is the Android framework plus the files in
 `app/src/main/java/com/salah/reminder/`:
@@ -154,14 +190,17 @@ No third-party libraries — the whole app is the Android framework plus the fil
 | `AdhanService` | plays the adhan |
 | `AlarmReceiver` / `BootReceiver` | alarm delivery and restoring after reboot |
 | `CityPickerActivity` | the bundled city list |
-| `Updater` | checks GitHub releases, downloads and installs |
+| `Updater` | checks GitHub releases, downloads and installs — one copy per flavour, the Play one does nothing |
 | `HijriDate` | Hijri date from the platform calendar |
 
 Tests live in `app/src/test/` and cover `PrayerCalc`: prayer-time ordering, Dhuhr at solar noon,
-Umm al-Qura's fixed 90-minute Isha, a later Hanafi Asr, daylight-saving handling, Qibla bearings
-checked against exact geometry, and every month at Tromsø, Longyearbyen, Alert and McMurdo so the
-polar fallbacks keep working.
+Umm al-Qura's fixed 90-minute Isha, a later Hanafi Asr, Jafari's delayed Maghrib, daylight-saving
+handling, rounding against a published timetable, per-prayer adjustment, times that do not move
+when the phone's own zone does, the short-night rules, Qibla bearings checked against exact
+geometry, and every month at Tromsø, Longyearbyen, Alert and McMurdo so the polar fallbacks keep
+working.
 
 City data: [GeoNames](https://www.geonames.org/) (`cities15000`, places over 15,000 people),
 licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), bundled as
-`app/src/main/assets/cities.txt`.
+`app/src/main/assets/cities.txt` — country, name, region, latitude, longitude, and an index
+into `app/src/main/assets/timezones.txt`, which is the same dataset's time-zone column.

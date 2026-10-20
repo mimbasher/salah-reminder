@@ -17,14 +17,27 @@ def canSign = storeFileRef.exists() && storePass != null && keyName != null && k
 
 android {
     namespace 'com.salah.reminder'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.salah.reminder"
         minSdk 26
-        targetSdk 34
+        // Google Play requires new apps and updates to target API 36 from 31 August 2026.
+        targetSdk 36
         versionCode 20200 + buildNumber
         versionName "2.2.${buildNumber}"
+    }
+
+    /**
+     * Two ways out of the same source. `github` carries the self-updater that fetches the
+     * next APK from the releases page; `play` leaves it out, along with the internet and
+     * install-packages permissions, because Play updates its own apps and its policy does
+     * not allow one to install code itself. See app/src/play/java/.../Updater.java.
+     */
+    flavorDimensions += "distribution"
+    productFlavors {
+        github { dimension "distribution" }
+        play { dimension "distribution" }
     }
 
     signingConfigs {

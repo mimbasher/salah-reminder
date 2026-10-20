@@ -5,6 +5,7 @@
 #   ./scripts/dev.sh emulator   # open a phone window on this computer (first run downloads ~1.5 GB)
 #   ./scripts/dev.sh install    # build, then install on the emulator or a plugged-in phone
 #   ./scripts/dev.sh build      # just build the APK
+#   ./scripts/dev.sh bundle     # build the .aab to upload to Google Play
 #   ./scripts/dev.sh logs       # follow the app's log output
 #   ./scripts/dev.sh stop       # close the emulator
 #
@@ -20,7 +21,7 @@ SDK="$TC/sdk"
 GRADLE="$TC/gradle/bin/gradle"
 SDKMAN="$SDK/cmdline-tools/latest/bin/sdkmanager"
 AVD=salah
-SYSIMG="system-images;android-34;default;x86_64"
+SYSIMG="system-images;android-36;default;x86_64"
 ADB="$SDK/platform-tools/adb"
 export JAVA_HOME="$TC/jdk"
 
@@ -40,26 +41,31 @@ setup() {
   fi
 
   if [ ! -x "$GRADLE" ]; then
-    fetch "https://services.gradle.org/distributions/gradle-8.9-bin.zip" gradle.zip
+    fetch "https://services.gradle.org/distributions/gradle-8.13-bin.zip" gradle.zip
     rm -rf "$TC/gradle" && unzip -q gradle.zip -d "$TC/tmp-gradle"
-    mv "$TC/tmp-gradle/gradle-8.9" "$TC/gradle" && rmdir "$TC/tmp-gradle"
+    mv "$TC/tmp-gradle/gradle-8.13" "$TC/gradle" && rmdir "$TC/tmp-gradle"
   fi
 
-  if [ ! -f "$SDK/platforms/android-34/android.jar" ]; then
-    fetch "https://dl.google.com/android/repository/platform-34-ext12_r01.zip" platform34.zip
-    unzip -q -o platform34.zip -d "$TC/dl/p34"
-    rm -rf "$SDK/platforms/android-34"
-    mv "$TC/dl/p34/"android-34* "$SDK/platforms/android-34"
-    # mark the extension platform as usable for compileSdk 34
-    sed -i 's/AndroidVersion.IsBaseSdk=false/AndroidVersion.IsBaseSdk=true/' \
-        "$SDK/platforms/android-34/source.properties"
+  if [ ! -f "$SDK/platforms/android-36/android.jar" ]; then
+    fetch "https://dl.google.com/android/repository/platform-36_r02.zip" platform36.zip
+    unzip -q -o platform36.zip -d "$TC/dl/p36"
+    rm -rf "$SDK/platforms/android-36"
+    mv "$TC/dl/p36/"android-36* "$SDK/platforms/android-36"
   fi
 
-  if [ ! -x "$SDK/build-tools/34.0.0/aapt2" ]; then
-    fetch "https://dl.google.com/android/repository/build-tools_r34-linux.zip" buildtools.zip
-    unzip -q -o buildtools.zip -d "$TC/dl/bt"
-    rm -rf "$SDK/build-tools/34.0.0"
-    mv "$TC/dl/bt/"android-* "$SDK/build-tools/34.0.0"
+  # Two sets: 36 matches compileSdk, 35 is the version AGP 8.13 reaches for by default.
+  if [ ! -x "$SDK/build-tools/36.0.0/aapt2" ]; then
+    fetch "https://dl.google.com/android/repository/build-tools_r36_linux.zip" buildtools36.zip
+    unzip -q -o buildtools36.zip -d "$TC/dl/bt36"
+    rm -rf "$SDK/build-tools/36.0.0"
+    mv "$TC/dl/bt36/"android-* "$SDK/build-tools/36.0.0"
+  fi
+
+  if [ ! -x "$SDK/build-tools/35.0.0/aapt2" ]; then
+    fetch "https://dl.google.com/android/repository/build-tools_r35_linux.zip" buildtools35.zip
+    unzip -q -o buildtools35.zip -d "$TC/dl/bt35"
+    rm -rf "$SDK/build-tools/35.0.0"
+    mv "$TC/dl/bt35/"android-* "$SDK/build-tools/35.0.0"
   fi
 
   if [ ! -x "$ADB" ]; then
@@ -118,17 +124,30 @@ stop_emulator() {
 
 need_setup() {
   [ -x "$TC/jdk/bin/java" ] && [ -x "$GRADLE" ] \
-    && [ -f "$SDK/platforms/android-34/android.jar" ] \
-    && [ -x "$SDK/build-tools/34.0.0/aapt2" ] || setup
+    && [ -f "$SDK/platforms/android-36/android.jar" ] \
+    && [ -x "$SDK/build-tools/36.0.0/aapt2" ] \
+    && [ -x "$SDK/build-tools/35.0.0/aapt2" ] || setup
 }
 
 build() {
   need_setup
   echo "sdk.dir=$SDK" > "$ROOT/local.properties"   # machine-local, git-ignored
   cd "$ROOT"
-  "$GRADLE" --no-daemon assembleDebug
+  # The github flavour is the one you install by hand; the play flavour is for the store.
+  "$GRADLE" --no-daemon assembleGithubDebug
   echo
-  echo "APK: app/build/outputs/apk/debug/app-debug.apk"
+  echo "APK: app/build/outputs/apk/github/debug/app-github-debug.apk"
+}
+
+# What Google Play takes: an app bundle of the play flavour, which has no self-updater.
+bundle() {
+  need_setup
+  echo "sdk.dir=$SDK" > "$ROOT/local.properties"
+  cd "$ROOT"
+  "$GRADLE" --no-daemon bundlePlayRelease
+  echo
+  echo "Bundle: app/build/outputs/bundle/playRelease/app-play-release.aab"
+  echo "Upload it at https://play.google.com/console"
 }
 
 install_apk() {
@@ -151,7 +170,7 @@ Then run this again. (Wireless: enable "Wireless debugging", then
 MSG
     exit 1
   fi
-  "$ADB" install -r "$ROOT/app/build/outputs/apk/debug/app-debug.apk"
+  "$ADB" install -r "$ROOT/app/build/outputs/apk/github/debug/app-github-debug.apk"
   "$ADB" shell monkey -p com.salah.reminder -c android.intent.category.LAUNCHER 1 >/dev/null
   echo "Installed and launched."
 }
@@ -161,7 +180,8 @@ case "${1:-install}" in
   emulator) start_emulator; install_apk ;;
   stop)     stop_emulator ;;
   build)    build ;;
+  bundle)   bundle ;;
   install)  install_apk ;;
   logs)     need_setup; "$ADB" logcat --pid="$("$ADB" shell pidof com.salah.reminder)" ;;
-  *)        sed -n '2,14p' "$0"; exit 1 ;;
+  *)        sed -n '2,15p' "$0"; exit 1 ;;
 esac
