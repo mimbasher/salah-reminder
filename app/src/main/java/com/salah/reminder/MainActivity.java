@@ -28,7 +28,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
@@ -222,19 +221,25 @@ public class MainActivity extends ThemedActivity {
         if (key.equals(shown)) return;
         shown = key;
 
-        String greg = new SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(new Date(now));
+        SimpleDateFormat dayFmt = new SimpleDateFormat("EEEE, d MMMM", Locale.getDefault());
+        dayFmt.setTimeZone(Scheduler.zone(this));
+        String greg = dayFmt.format(new Date(now));
         String hijri = HijriDate.format(now);
         dateView.setText(hijri == null ? greg : greg + "  ·  " + hijri);
 
         placeView.setVisibility(View.VISIBLE);
         ring.setVisibility(View.VISIBLE);
         heroAction.setVisibility(View.GONE);
-        placeView.setText("📍  " + p.getString("place", "Custom location"));
+        // When the place keeps another clock than the phone, every time on this screen is on
+        // the place's clock, and saying so is the difference between a bug and a feature.
+        String place = "📍  " + p.getString("place", "Custom location");
+        placeView.setText(Scheduler.zoneDiffersFromPhone(this)
+                ? place + "  ·  " + Scheduler.zoneLabel(this) : place);
 
         heroLabel.setText("NEXT PRAYER");
         heroName.setTextSize(34);
         heroName.setText(PrayerCalc.NAMES[ni]);
-        heroTime.setText(Scheduler.fmt(nt) + (sameDay(nt, now) ? "" : "  ·  tomorrow"));
+        heroTime.setText(Scheduler.fmt(this, nt) + (sameDay(nt, now) ? "" : "  ·  tomorrow"));
 
         paintList(now, ni, nt);
         paintWarning();
@@ -269,7 +274,7 @@ public class MainActivity extends ThemedActivity {
 
     /** Changes whenever a prayer is marked prayed or a new card appears. */
     private int stateMask(long now) {
-        long[] t = Scheduler.timesFor(this, Calendar.getInstance());
+        long[] t = Scheduler.timesFor(this, Scheduler.dayAt(this, System.currentTimeMillis()));
         int m = 0;
         for (int i = 0; i < 5; i++) {
             if (Scheduler.pending(this, i) != 0) m |= 1 << i;
@@ -286,7 +291,7 @@ public class MainActivity extends ThemedActivity {
 
     private void paintList(long now, int nextIndex, long nextTime) {
         listCard.removeAllViews();
-        long[] t = Scheduler.timesFor(this, Calendar.getInstance());
+        long[] t = Scheduler.timesFor(this, Scheduler.dayAt(this, System.currentTimeMillis()));
         for (int i = 0; i < 5; i++) {
             final int idx = i;
             boolean pending = Scheduler.pending(this, i) != 0;
@@ -319,7 +324,7 @@ public class MainActivity extends ThemedActivity {
             col.addView(subView);
             row.addView(col, Ui.lp(0, -2, 1));
 
-            TextView time = Ui.text(this, Scheduler.fmt(t[i]), 16.5f,
+            TextView time = Ui.text(this, Scheduler.fmt(this, t[i]), 16.5f,
                     done ? Ui.MUTED : isNext ? Ui.ACCENT : Ui.TEXT, Ui.MEDIUM);
             row.addView(time);
 
@@ -397,7 +402,7 @@ public class MainActivity extends ThemedActivity {
         sub.setPadding(0, dp(2), 0, 0);
         col.addView(sub);
         row.addView(col, Ui.lp(0, -2, 1));
-        row.addView(Ui.text(this, Scheduler.fmt(at), 16.5f, Ui.TEXT, Ui.MEDIUM));
+        row.addView(Ui.text(this, Scheduler.fmt(this, at), 16.5f, Ui.TEXT, Ui.MEDIUM));
         listCard.addView(row, Ui.lp(-1, -2));
     }
 
@@ -447,8 +452,8 @@ public class MainActivity extends ThemedActivity {
 
     // ---------------- small helpers ----------------
 
-    private static boolean sameDay(long a, long b) {
-        return Scheduler.dayKey(a) == Scheduler.dayKey(b);
+    private boolean sameDay(long a, long b) {
+        return Scheduler.dayKey(this, a) == Scheduler.dayKey(this, b);
     }
 
     private static float span(long from, long to, long now) {

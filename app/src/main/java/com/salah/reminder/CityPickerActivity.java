@@ -28,11 +28,11 @@ import java.util.Map;
 
 /** Pick a city from the bundled list: tap a country, then a city. No typing, no internet. */
 public class CityPickerActivity extends ThemedActivity {
-    static final String EX_NAME = "name", EX_LAT = "lat", EX_LNG = "lng";
+    static final String EX_NAME = "name", EX_LAT = "lat", EX_LNG = "lng", EX_TZ = "tz";
     private static final String ST_COUNTRY = "country", ST_QUERY = "query";
 
     /** The whole list, parsed once and kept for as long as the process lives. */
-    private static String[] cc, names, regions, lowerNames;
+    private static String[] cc, names, regions, lowerNames, zones;
     private static double[] lats, lngs;
 
     private TextView title, status;
@@ -107,7 +107,22 @@ public class CityPickerActivity extends ThemedActivity {
 
     // ---------------- data ----------------
 
+    /** The zone names, one per line, that the last column of cities.txt indexes into. */
+    private String[] loadZones() {
+        List<String> z = new ArrayList<>(400);
+        try (BufferedReader r = new BufferedReader(
+                new InputStreamReader(getAssets().open("timezones.txt"), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = r.readLine()) != null) if (!line.isEmpty()) z.add(line);
+        } catch (Exception ignored) {
+            // Without the table the phone's own zone is used, which is right for anyone who
+            // is where they say they are. Not a reason to fail the whole list.
+        }
+        return z.toArray(new String[0]);
+    }
+
     private void load() {
+        String[] zoneNames = loadZones();
         List<String[]> parsed = new ArrayList<>(35000);
         try (BufferedReader r = new BufferedReader(
                 new InputStreamReader(getAssets().open("cities.txt"), StandardCharsets.UTF_8))) {
@@ -122,6 +137,7 @@ public class CityPickerActivity extends ThemedActivity {
         }
         int n = parsed.size();
         String[] c = new String[n], nm = new String[n], rg = new String[n], lw = new String[n];
+        String[] tz = new String[n];
         double[] la = new double[n], ln = new double[n];
         for (int i = 0; i < n; i++) {
             String[] f = parsed.get(i);
@@ -132,9 +148,13 @@ public class CityPickerActivity extends ThemedActivity {
             try {
                 la[i] = Double.parseDouble(f[3]);
                 ln[i] = Double.parseDouble(f[4]);
+                if (f.length >= 6) {
+                    int zi = Integer.parseInt(f[5]);
+                    if (zi >= 0 && zi < zoneNames.length) tz[i] = zoneNames[zi];
+                }
             } catch (NumberFormatException ignored) { }
         }
-        cc = c; names = nm; regions = rg; lowerNames = lw; lats = la; lngs = ln;
+        cc = c; names = nm; regions = rg; lowerNames = lw; lats = la; lngs = ln; zones = tz;
         runOnUiThread(this::rebuild);
     }
 
@@ -234,7 +254,8 @@ public class CityPickerActivity extends ThemedActivity {
         setResult(RESULT_OK, new Intent()
                 .putExtra(EX_NAME, place)
                 .putExtra(EX_LAT, lats[i])
-                .putExtra(EX_LNG, lngs[i]));
+                .putExtra(EX_LNG, lngs[i])
+                .putExtra(EX_TZ, zones[i]));
         finish();
     }
 

@@ -14,6 +14,8 @@ import android.os.Build;
 import java.text.DateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
 
 /** All scheduling, state and notification logic. */
 public class Scheduler {
@@ -68,16 +70,92 @@ public class Scheduler {
     static double lat(Context c) { return Double.parseDouble(prefs(c).getString("lat", "0")); }
     static double lng(Context c) { return Double.parseDouble(prefs(c).getString("lng", "0")); }
 
-    static long[] timesFor(Context c, Calendar day) {
+    /**
+     * The clock the chosen place keeps, which is the phone's own only when the phone is there.
+     * Pick Makkah from Berlin and the times must still be Makkah's, so the city list carries a
+     * zone for every city and everything here — the maths, the alarms, the clock faces on the
+     * home screen — runs in it.
+     */
+    static TimeZone zone(Context c) {
+        String id = prefs(c).getString("tz", null);
+        if (id == null) return TimeZone.getDefault();
+        TimeZone z = TimeZone.getTimeZone(id);
+        // getTimeZone() answers GMT for anything it does not recognise; a stored id that this
+        // Android has never heard of should fall back to the phone, not to Greenwich.
+        if ("GMT".equals(z.getID()) && !id.startsWith("GMT") && !"UTC".equals(id)) {
+            return TimeZone.getDefault();
+        }
+        return z;
+    }
+
+    /**
+     * The place's clock as a person reads it: "Riyadh time (UTC+3)". The zone's own display
+     * name is no use here — half of them come back as "GMT+03:00", which says it twice — so
+     * the city at the end of the zone id does the naming.
+     */
+    static String zoneLabel(Context c) {
+        TimeZone z = zone(c);
+        String id = z.getID();
+        String city = id.substring(id.lastIndexOf('/') + 1).replace('_', ' ');
+        int mins = z.getOffset(System.currentTimeMillis()) / 60000;
+        String sign = mins < 0 ? "-" : "+";
+        mins = Math.abs(mins);
+        String off = mins % 60 == 0 ? sign + (mins / 60)
+                : String.format(Locale.US, "%s%d:%02d", sign, mins / 60, mins % 60);
+        return city + " time (UTC" + off + ")";
+    }
+
+    /** Whether the place keeps a different clock from the phone, worth saying out loud. */
+    static boolean zoneDiffersFromPhone(Context c) {
+        TimeZone z = zone(c);
+        long now = System.currentTimeMillis();
+        return z.getOffset(now) != TimeZone.getDefault().getOffset(now);
+    }
+
+    /** A calendar on the place's clock, so "today" means today where the prayers are. */
+    static Calendar dayAt(Context c, long t) {
+        Calendar day = Calendar.getInstance(zone(c));
+        day.setTimeInMillis(t);
+        return day;
+    }
+
+    /** How many minutes have been added to (or taken off) prayer {@code i}. */
+    static int tune(Context c, int i) {
+        return Math.max(-60, Math.min(60, prefs(c).getInt("tune_" + i, 0)));
+    }
+
+    /** The calculation settings as PrayerCalc wants them. */
+    static PrayerCalc.Config config(Context c) {
         SharedPreferences p = prefs(c);
-        return PrayerCalc.times(day, lat(c), lng(c), p.getInt("method", 0), p.getBoolean("hanafi", false));
+        PrayerCalc.Config cfg = new PrayerCalc.Config();
+        cfg.method = Math.min(Math.max(0, p.getInt("method", 0)), PrayerCalc.METHODS.length - 1);
+        cfg.hanafi = p.getBoolean("hanafi", false);
+        cfg.highLat = Math.min(Math.max(0, p.getInt("high_lat", PrayerCalc.HL_ANGLE)),
+                PrayerCalc.HIGH_LAT.length - 1);
+        cfg.customFajr = angle(p, "custom_fajr", 18);
+        cfg.customIsha = angle(p, "custom_isha", 17);
+        for (int i = 0; i < 5; i++) cfg.tune[i] = tune(c, i);
+        return cfg;
+    }
+
+    /** Angles are kept as text so a decimal survives whatever the keyboard produced. */
+    private static double angle(SharedPreferences p, String key, double fallback) {
+        try {
+            double v = Double.parseDouble(p.getString(key, String.valueOf(fallback)));
+            return v > 0 && v < 30 ? v : fallback;
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    static long[] timesFor(Context c, Calendar day) {
+        return PrayerCalc.times(day, lat(c), lng(c), config(c));
     }
 
     /** {index, time} of the first prayer after {@code now}, rolling into tomorrow. */
     static long[] next(Context c, long now) {
         if (!hasLocation(c)) return null;
-        Calendar day = Calendar.getInstance();
-        day.setTimeInMillis(now);
+        Calendar day = dayAt(c, now);
         for (int k = 0; k < 2; k++) {
             long[] t = timesFor(c, day);
             for (int i = 0; i < 5; i++) if (t[i] > now) return new long[]{i, t[i]};
@@ -89,8 +167,7 @@ public class Scheduler {
     /** The most recent prayer at or before {@code now}, reaching back to yesterday's Isha. */
     static long prevTime(Context c, long now) {
         if (!hasLocation(c)) return now;
-        Calendar day = Calendar.getInstance();
-        day.setTimeInMillis(now);
+        Calendar day = dayAt(c, now);
         for (int k = 0; k < 2; k++) {
             long[] t = timesFor(c, day);
             for (int i = 4; i >= 0; i--) if (t[i] <= now) return t[i];
@@ -143,8 +220,7 @@ public class Scheduler {
     static long nextQiyam(Context c, long now) {
         int mode = prefs(c).getInt("qiyam", 0);
         if (mode <= 0 || !hasLocation(c)) return 0;
-        Calendar day = Calendar.getInstance();
-        day.setTimeInMillis(now);
+        Calendar day = dayAt(c, now);
         day.add(Calendar.DAY_OF_MONTH, -1);          // last night's window may still be running
         for (int k = 0; k < 3; k++) {
             long t = qiyamTime(c, day, mode);
@@ -187,8 +263,7 @@ public class Scheduler {
     static long nextDhuha(Context c, long now) {
         int mode = prefs(c).getInt("dhuha", 0);
         if (mode <= 0 || !hasLocation(c)) return 0;
-        Calendar day = Calendar.getInstance();
-        day.setTimeInMillis(now);
+        Calendar day = dayAt(c, now);
         for (int k = 0; k < 3; k++) {
             long t = dhuhaTime(c, day, mode);
             if (t > now + 1000) return t;
@@ -209,7 +284,7 @@ public class Scheduler {
         if (prefs(c).getInt("dhuha", 0) > 0) {
             long[] nx = next(c, System.currentTimeMillis());
             String until = nx != null && nx[0] == 1
-                    ? "Pray it before Dhuhr at " + fmt(nx[1]) : "Pray it before Dhuhr";
+                    ? "Pray it before Dhuhr at " + fmt(c, nx[1]) : "Pray it before Dhuhr";
             Notification n = new Notification.Builder(c, CH_DHUHA)
                     .setSmallIcon(R.drawable.ic_notif)
                     .setContentTitle("Dhuha")
@@ -242,7 +317,7 @@ public class Scheduler {
             long fajr = 0;
             long[] nx = next(c, System.currentTimeMillis());
             if (nx != null && nx[0] == 0) fajr = nx[1];
-            String when = fajr > 0 ? "Fajr is at " + fmt(fajr) : "Pray before Fajr";
+            String when = fajr > 0 ? "Fajr is at " + fmt(c, fajr) : "Pray before Fajr";
             Notification n = new Notification.Builder(c, CH_QIYAM)
                     .setSmallIcon(R.drawable.ic_notif)
                     .setContentTitle("Qiyam al-Layl")
@@ -261,13 +336,14 @@ public class Scheduler {
         scheduleQiyam(c);
     }
 
-    static String fmt(long t) {
-        return DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(t));
+    static String fmt(Context c, long t) {
+        DateFormat f = DateFormat.getTimeInstance(DateFormat.SHORT);
+        f.setTimeZone(zone(c));
+        return f.format(new Date(t));
     }
 
-    static int dayKey(long t) {
-        Calendar k = Calendar.getInstance();
-        k.setTimeInMillis(t);
+    static int dayKey(Context c, long t) {
+        Calendar k = dayAt(c, t);
         return k.get(Calendar.YEAR) * 10000 + (k.get(Calendar.MONTH) + 1) * 100 + k.get(Calendar.DAY_OF_MONTH);
     }
 
@@ -293,8 +369,7 @@ public class Scheduler {
         AlarmManager am = c.getSystemService(AlarmManager.class);
         am.cancel(bcast(c, RC_PRE, A_PRE, 0, 0));
         if (!hasLocation(c)) return;
-        Calendar day = Calendar.getInstance();
-        day.setTimeInMillis(after);
+        Calendar day = dayAt(c, after);
         for (int k = 0; k < 2; k++) {
             long[] t = timesFor(c, day);
             for (int i = 0; i < 5; i++) {
@@ -327,10 +402,10 @@ public class Scheduler {
     static long pending(Context c, int i) { return prefs(c).getLong("pending_" + i, 0); }
 
     /** The "you prayed this" flag for prayer {@code i} on the day of {@code t}. */
-    static String doneKey(long t, int i) { return "done_" + dayKey(t) + "_" + i; }
+    static String doneKey(Context c, long t, int i) { return "done_" + dayKey(c, t) + "_" + i; }
 
     static boolean isDone(Context c, long t, int i) {
-        return prefs(c).getBoolean(doneKey(t, i), false);
+        return prefs(c).getBoolean(doneKey(c, t, i), false);
     }
 
     /**
@@ -343,24 +418,24 @@ public class Scheduler {
             return;
         }
         SharedPreferences p = prefs(c);
-        SharedPreferences.Editor e = p.edit().putBoolean(doneKey(t, i), true);
-        pruneDone(p, e);
+        SharedPreferences.Editor e = p.edit().putBoolean(doneKey(c, t, i), true);
+        pruneDone(c, p, e);
         e.apply();
     }
 
     /** Takes a tick back, for a mis-tap. */
     static void unmarkPrayed(Context c, int i, long t) {
-        prefs(c).edit().remove(doneKey(t, i)).apply();
+        prefs(c).edit().remove(doneKey(c, t, i)).apply();
     }
 
     /** How many days of ticks to keep. The home screen only ever shows today's. */
     private static final int DONE_KEEP_DAYS = 7;
 
     /** Drops ticks older than a week, so the prefs file doesn't grow for the app's lifetime. */
-    private static void pruneDone(SharedPreferences p, SharedPreferences.Editor e) {
-        Calendar cut = Calendar.getInstance();
+    private static void pruneDone(Context c, SharedPreferences p, SharedPreferences.Editor e) {
+        Calendar cut = dayAt(c, System.currentTimeMillis());
         cut.add(Calendar.DAY_OF_MONTH, -DONE_KEEP_DAYS);
-        int oldest = dayKey(cut.getTimeInMillis());
+        int oldest = dayKey(c, cut.getTimeInMillis());
         for (String key : p.getAll().keySet()) {
             if (!key.startsWith("done_")) continue;
             int sep = key.indexOf('_', 5);
@@ -387,7 +462,7 @@ public class Scheduler {
         Notification n = new Notification.Builder(c, CH_PRE)
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle(PrayerCalc.NAMES[i] + " in " + mins + " min")
-                .setContentText("Adhan at " + fmt(t) + " — time to get ready")
+                .setContentText("Adhan at " + fmt(c, t) + " — time to get ready")
                 .setColor(ACCENT)
                 .setContentIntent(openApp(c, 600))
                 .setAutoCancel(true)
@@ -414,8 +489,8 @@ public class Scheduler {
         long t = pending(c, i);
         SharedPreferences p = prefs(c);
         SharedPreferences.Editor e = p.edit().remove("pending_" + i);
-        if (t != 0) e.putBoolean(doneKey(t, i), true);
-        pruneDone(p, e);
+        if (t != 0) e.putBoolean(doneKey(c, t, i), true);
+        pruneDone(c, p, e);
         if (prefs(c).getInt("nag_i", -1) == i) {
             c.getSystemService(AlarmManager.class).cancel(bcast(c, RC_NAG, A_NAG, i, 0));
             e.remove("nag_i");
@@ -511,7 +586,7 @@ public class Scheduler {
                 Icon.createWithResource(c, R.drawable.ic_notif), "✓ Prayed", done).build();
         Notification n = new Notification.Builder(c, alert ? CH_ALERT : CH_PIN)
                 .setSmallIcon(R.drawable.ic_notif)
-                .setContentTitle(PrayerCalc.NAMES[i] + " · " + fmt(t))
+                .setContentTitle(PrayerCalc.NAMES[i] + " · " + fmt(c, t))
                 .setContentText("Tap ✓ Prayed when you have prayed")
                 .setStyle(new Notification.BigTextStyle().bigText(
                         "It is time for " + PrayerCalc.NAMES[i] + ". This reminder stays here, and "

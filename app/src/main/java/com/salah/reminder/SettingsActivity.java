@@ -33,7 +33,6 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
@@ -46,6 +45,8 @@ public class SettingsActivity extends ThemedActivity {
     private interface Pick { void on(int value); }
 
     private TextView placeView, soundView, updateStatus, updateButton, qiyamHint, dhuhaHint;
+    private TextView methodHint, tuneHint;
+    private LinearLayout tuneRows;
     private Switch adhanSwitch, qiyamSwitch, dhuhaSwitch;
     private LinearLayout preRow, nagRow, qiyamRow, qiyamBeforeRow, themeRow;
     private LinearLayout dhuhaRow, dhuhaAfterRow;
@@ -105,14 +106,54 @@ public class SettingsActivity extends ThemedActivity {
         calc.addView(wrapField(dropdown(PrayerCalc.METHODS, method, i -> {
             prefs().edit().putInt("method", i).apply();
             reschedule("Method updated");
+            refresh();                               // each method has its own note to show
         })), Ui.lp(-1, -2));
+        methodHint = Ui.text(this, "", 12.5f, Ui.MUTED, null);
+        methodHint.setPadding(0, dp(8), 0, 0);
+        calc.addView(methodHint, Ui.lp(-1, -2));
+        calc.addView(Ui.secondary(this, "Set my own angles", v -> askAngles()), Ui.stacked(this, 10));
+
         calc.addView(fieldLabel("Asr"));
         calc.addView(wrapField(dropdown(new String[]{"Standard (Shafi, Maliki, Hanbali)", "Hanafi"},
                 prefs().getBoolean("hanafi", false) ? 1 : 0, i -> {
             prefs().edit().putBoolean("hanafi", i == 1).apply();
             reschedule("Asr updated");
         })), Ui.lp(-1, -2));
+
+        calc.addView(Ui.divider(this));
+        calc.addView(fieldLabel("Short summer nights"));
+        int hl = Math.min(Math.max(0, prefs().getInt("high_lat", PrayerCalc.HL_ANGLE)),
+                PrayerCalc.HIGH_LAT.length - 1);
+        calc.addView(wrapField(dropdown(PrayerCalc.HIGH_LAT, hl, i -> {
+            prefs().edit().putInt("high_lat", i).apply();
+            reschedule("Short-night rule updated");
+        })), Ui.lp(-1, -2));
+        calc.addView(Ui.text(this,
+                "What to do where the sky never darkens enough for Fajr and Isha. Only "
+                        + "matters above about 48\u00b0 of latitude.", 11.5f, Ui.MUTED, null),
+                Ui.stacked(this, 8));
         root.addView(calc, Ui.lp(-1, -2));
+
+        // ---- fine-tuning ----
+        root.addView(Ui.sectionTitle(this, "Fine-tune the times"));
+        LinearLayout tuneCard = Ui.card(this);
+        tuneCard.addView(Ui.text(this,
+                "Mosques add a minute or two of their own. Nudge each prayer until the app "
+                        + "agrees with the one you pray at.", 12.5f, Ui.MUTED, null), Ui.lp(-1, -2));
+        tuneRows = new LinearLayout(this);
+        tuneRows.setOrientation(LinearLayout.VERTICAL);
+        tuneCard.addView(tuneRows, Ui.stacked(this, 6));
+        tuneHint = Ui.text(this, "", 12.5f, Ui.ACCENT, null);
+        tuneHint.setPadding(0, dp(6), 0, 0);
+        tuneCard.addView(tuneHint, Ui.lp(-1, -2));
+        tuneCard.addView(Ui.secondary(this, "Reset all to zero", v -> {
+            SharedPreferences.Editor e = prefs().edit();
+            for (int i = 0; i < 5; i++) e.remove("tune_" + i);
+            e.apply();
+            reschedule("Adjustments cleared");
+            refresh();
+        }), Ui.stacked(this, 12));
+        root.addView(tuneCard, Ui.lp(-1, -2));
 
         // ---- adhan ----
         root.addView(Ui.sectionTitle(this, "Adhan sound"));
@@ -383,6 +424,108 @@ public class SettingsActivity extends ThemedActivity {
                 .show();
     }
 
+    /**
+     * One prayer's adjustment: minus, the number, plus. A stepper beats a row of chips here —
+     * people arrive knowing they are two minutes out, not which preset that is.
+     */
+    private void paintTune() {
+        tuneRows.removeAllViews();
+        for (int i = 0; i < 5; i++) {
+            final int prayer = i;
+            LinearLayout row = Ui.rowOf(this);
+            row.setPadding(0, dp(6), 0, dp(6));
+
+            TextView name = Ui.text(this, PrayerCalc.NAMES[i], 15, Ui.TEXT, Ui.MEDIUM);
+            row.addView(name, Ui.lp(0, -2, 1));
+
+            int value = Scheduler.tune(this, i);
+            row.addView(Ui.chip(this, "\u2212", false, v -> nudge(prayer, -1)), Ui.lp(-2, -2));
+            TextView shown = Ui.text(this, tuneLabel(value), 14.5f,
+                    value == 0 ? Ui.MUTED : Ui.ACCENT, Ui.MEDIUM);
+            shown.setMinWidth(dp(68));
+            shown.setGravity(Gravity.CENTER);
+            row.addView(shown, Ui.lp(-2, -2));
+            row.addView(Ui.chip(this, "+", false, v -> nudge(prayer, 1)), Ui.lp(-2, -2));
+
+            tuneRows.addView(row, Ui.lp(-1, -2));
+        }
+        showTimesPreview();
+    }
+
+    private static String tuneLabel(int m) {
+        if (m == 0) return "on time";
+        return (m > 0 ? "+" : "\u2212") + Math.abs(m) + " min";
+    }
+
+    private void nudge(int prayer, int delta) {
+        int value = Math.max(-60, Math.min(60, Scheduler.tune(this, prayer) + delta));
+        prefs().edit().putInt("tune_" + prayer, value).apply();
+        Scheduler.scheduleNext(this, System.currentTimeMillis());
+        Scheduler.scheduleQiyam(this);
+        Scheduler.scheduleDhuha(this);
+        paintTune();                                 // which repaints the preview with it
+    }
+
+    /** Today's five times as they stand, so a nudge can be checked without leaving the screen. */
+    private void showTimesPreview() {
+        if (!Scheduler.hasLocation(this)) {
+            tuneHint.setText("Set your city to see today's times here.");
+            return;
+        }
+        long[] t = Scheduler.timesFor(this, Scheduler.dayAt(this, System.currentTimeMillis()));
+        StringBuilder sb = new StringBuilder("Today  ");
+        for (int i = 0; i < 5; i++) {
+            if (i > 0) sb.append("   ");
+            sb.append(PrayerCalc.NAMES[i].charAt(0)).append(' ').append(Scheduler.fmt(this, t[i]));
+        }
+        tuneHint.setText(sb.toString());
+    }
+
+    /**
+     * Fajr and Isha angles typed in by hand, for anyone whose authority publishes its own and
+     * is on none of the lists. Choosing this switches the method over to them.
+     */
+    private void askAngles() {
+        LinearLayout box = Ui.column(this);
+        box.setPadding(dp(22), dp(10), dp(22), 0);
+        EditText fajr = Ui.input(this, "Fajr angle, e.g. 18.5");
+        EditText isha = Ui.input(this, "Isha angle, e.g. 17");
+        fajr.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        isha.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        fajr.setText(prefs().getString("custom_fajr", "18"));
+        isha.setText(prefs().getString("custom_isha", "17"));
+        box.addView(fieldLabel("Fajr angle"));
+        box.addView(fajr, Ui.lp(-1, -2));
+        box.addView(fieldLabel("Isha angle"));
+        box.addView(isha, Ui.lp(-1, -2));
+
+        new AlertDialog.Builder(this, Ui.dark ? android.R.style.Theme_Material_Dialog_Alert
+                : android.R.style.Theme_Material_Light_Dialog_Alert)
+                .setTitle("Your own angles")
+                .setMessage("How far the sun sits below the horizon at Fajr and at Isha, in "
+                        + "degrees. Your local authority publishes these.")
+                .setView(box)
+                .setPositiveButton("Use these", (d, w) -> {
+                    try {
+                        double f = Double.parseDouble(fajr.getText().toString().trim());
+                        double i = Double.parseDouble(isha.getText().toString().trim());
+                        if (f <= 0 || f >= 30 || i <= 0 || i >= 30) {
+                            toast("Angles run from about 12 to 20 degrees");
+                            return;
+                        }
+                        prefs().edit()
+                                .putString("custom_fajr", String.valueOf(f))
+                                .putString("custom_isha", String.valueOf(i))
+                                .putInt("method", PrayerCalc.CUSTOM).apply();
+                        recreate();                  // the method dropdown has to move with it
+                    } catch (Exception e) {
+                        toast("Type the angles as numbers, like 18.5");
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     private static String[] minuteLabels(int[] values) {
         String[] out = new String[values.length];
         for (int i = 0; i < values.length; i++) {
@@ -399,7 +542,19 @@ public class SettingsActivity extends ThemedActivity {
         placeView.setText(Scheduler.hasLocation(this)
                 ? p.getString("place", "Custom location")
                 + String.format(Locale.US, "  (%.3f, %.3f)", Scheduler.lat(this), Scheduler.lng(this))
+                + (Scheduler.zoneDiffersFromPhone(this)
+                        ? "\nTimes shown on " + Scheduler.zoneLabel(this)
+                        + ", the clock of that place" : "")
                 : "No city set yet");
+
+        int mi = Math.min(Math.max(0, p.getInt("method", 0)), PrayerCalc.METHODS.length - 1);
+        String note = PrayerCalc.METHOD_NOTES[mi];
+        methodHint.setText(mi == PrayerCalc.CUSTOM
+                ? "Fajr " + p.getString("custom_fajr", "18") + "\u00b0, Isha "
+                        + p.getString("custom_isha", "17") + "\u00b0"
+                : note != null ? note
+                : "Pick the authority your mosque follows \u2014 it sets the Fajr and Isha angles.");
+        paintTune();
 
         String name = p.getString("adhan_name", null);
         soundView.setText("Current sound: " + (name != null ? name : "the adhan built into the app"));
@@ -453,7 +608,7 @@ public class SettingsActivity extends ThemedActivity {
         }
 
         long next = Scheduler.nextQiyam(this, System.currentTimeMillis());
-        qiyamHint.setText(next > 0 ? "Next reminder at " + Scheduler.fmt(next)
+        qiyamHint.setText(next > 0 ? "Next reminder at " + Scheduler.fmt(this, next)
                 : Scheduler.hasLocation(this) ? "No night window tonight at this latitude"
                 : "Set your city to see the time");
     }
@@ -483,7 +638,7 @@ public class SettingsActivity extends ThemedActivity {
         }
 
         long next = Scheduler.nextDhuha(this, System.currentTimeMillis());
-        dhuhaHint.setText(next > 0 ? "Next reminder at " + Scheduler.fmt(next)
+        dhuhaHint.setText(next > 0 ? "Next reminder at " + Scheduler.fmt(this, next)
                 : Scheduler.hasLocation(this) ? "No sunrise today at this latitude"
                 : "Set your city to see the time");
     }
@@ -525,11 +680,17 @@ public class SettingsActivity extends ThemedActivity {
 
     // ---------------- location ----------------
 
-    private void setPlace(String name, double lat, double lng) {
-        prefs().edit()
+    /**
+     * @param tz the chosen city's own zone, or null to follow the phone — which is what GPS
+     *           means: you are standing in the place, so its clock is already your clock.
+     */
+    private void setPlace(String name, double lat, double lng, String tz) {
+        SharedPreferences.Editor e = prefs().edit()
                 .putString("lat", String.format(Locale.US, "%.4f", lat))
                 .putString("lng", String.format(Locale.US, "%.4f", lng))
-                .putString("place", name == null ? "Selected location" : name).apply();
+                .putString("place", name == null ? "Selected location" : name);
+        if (tz == null) e.remove("tz"); else e.putString("tz", tz);
+        e.apply();
         Scheduler.scheduleNext(this, System.currentTimeMillis());
         Scheduler.scheduleQiyam(this);
         Scheduler.scheduleDhuha(this);
@@ -598,7 +759,7 @@ public class SettingsActivity extends ThemedActivity {
                 }
             } catch (Exception ignored) { }
             final String n = name;
-            runOnUiThread(() -> setPlace(n, lat, lng));
+            runOnUiThread(() -> setPlace(n, lat, lng, null));
         }).start();
     }
 
@@ -632,7 +793,8 @@ public class SettingsActivity extends ThemedActivity {
             if (res == RESULT_OK && data != null) {
                 setPlace(data.getStringExtra(CityPickerActivity.EX_NAME),
                         data.getDoubleExtra(CityPickerActivity.EX_LAT, 0),
-                        data.getDoubleExtra(CityPickerActivity.EX_LNG, 0));
+                        data.getDoubleExtra(CityPickerActivity.EX_LNG, 0),
+                        data.getStringExtra(CityPickerActivity.EX_TZ));
             }
             return;
         }
@@ -672,7 +834,7 @@ public class SettingsActivity extends ThemedActivity {
     private void testNow() {
         if (!Scheduler.hasLocation(this)) { toast("Choose your city first"); return; }
         long now = System.currentTimeMillis();
-        long[] t = Scheduler.timesFor(this, Calendar.getInstance());
+        long[] t = Scheduler.timesFor(this, Scheduler.dayAt(this, System.currentTimeMillis()));
         int i = 0;
         for (int k = 0; k < 5; k++) if (t[k] <= now) i = k;
         Scheduler.onPrayerTime(this, i, t[i]);
