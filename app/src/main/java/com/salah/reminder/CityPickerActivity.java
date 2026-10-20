@@ -159,6 +159,8 @@ public class CityPickerActivity extends ThemedActivity {
     }
 
     private static String countryName(String code) {
+        // Android names a few places oddly: PS comes back as "Palestinian Territories".
+        if ("PS".equals(code)) return "Palestine";
         String s = new Locale("", code).getDisplayCountry();
         return s == null || s.isEmpty() ? code : s;
     }
