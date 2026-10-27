@@ -57,7 +57,9 @@ adhan is built in, and 34,000 cities are bundled with the app — so there is no
 up for, nothing to load, and no connection needed.
 
 PRAYER TIMES THAT MATCH YOUR MOSQUE
-• Seventeen calculation methods: Muslim World League, Umm al-Qura, Egyptian Authority, ISNA,
+• The calculation method follows your country automatically, so the times are your own
+  authority's without setting anything up.
+• Or choose from seventeen: Muslim World League, Umm al-Qura, Egyptian Authority, ISNA,
   Karachi, Diyanet, Dubai, Gulf, Kuwait, Qatar, Singapore and Indonesia, Morocco, France,
   Russia, Tehran and Jafari — or type your own Fajr and Isha angles.
 • Standard or Hanafi Asr.
@@ -193,8 +195,8 @@ Play needs a public URL. Either works:
 ```
 First release on Google Play.
 
-• Prayer times computed on your phone, with seventeen calculation methods and per-prayer
-  adjustment so they match your local mosque.
+• Prayer times computed on your phone, with the calculation method chosen from your country,
+  seventeen to pick from by hand, and per-prayer adjustment to match your local mosque.
 • The adhan, a reminder that waits until you have prayed, a Qibla compass, Qiyam al-Layl and
   Dhuha.
 • No internet permission: nothing you do leaves your phone.

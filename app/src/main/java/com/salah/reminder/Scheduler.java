@@ -124,17 +124,50 @@ public class Scheduler {
         return Math.max(-60, Math.min(60, prefs(c).getInt("tune_" + i, 0)));
     }
 
+    /** Whether the method follows the country. Anyone who picked one has it stored, and keeps it. */
+    static boolean methodIsAutomatic(Context c) {
+        SharedPreferences p = prefs(c);
+        return p.getBoolean("method_auto", !p.contains("method"));
+    }
+
+    /** The country whose timetable applies, resolved from the location if it was not stored. */
+    static String country(Context c) {
+        SharedPreferences p = prefs(c);
+        String cc = p.getString("cc", null);
+        if (cc != null) return cc;
+        if (!hasLocation(c)) return null;
+        String found = Region.countryAt(c, lat(c), lng(c));
+        // "" is remembered as "looked, could not tell", so a failure does not walk the city
+        // list again on every redraw.
+        p.edit().putString("cc", found == null ? "" : found).apply();
+        return found;
+    }
+
+    /** The timetable the country keeps, or null when the person picked a method themselves. */
+    static Region.Profile profile(Context c) {
+        return methodIsAutomatic(c) ? Region.of(country(c)) : null;
+    }
+
     /** The calculation settings as PrayerCalc wants them. */
     static PrayerCalc.Config config(Context c) {
         SharedPreferences p = prefs(c);
         PrayerCalc.Config cfg = new PrayerCalc.Config();
-        cfg.method = Math.min(Math.max(0, p.getInt("method", 0)), PrayerCalc.METHODS.length - 1);
-        cfg.hanafi = p.getBoolean("hanafi", false);
+        Region.Profile auto = profile(c);
+        cfg.method = auto != null ? auto.method
+                : Math.min(Math.max(0, p.getInt("method", 0)), PrayerCalc.METHODS.length - 1);
+        // An Asr the person chose outranks the country's: the shadow is a question of fiqh.
+        cfg.hanafi = p.contains("hanafi") ? p.getBoolean("hanafi", false)
+                : auto != null && auto.hanafi;
         cfg.highLat = Math.min(Math.max(0, p.getInt("high_lat", PrayerCalc.HL_ANGLE)),
                 PrayerCalc.HIGH_LAT.length - 1);
         cfg.customFajr = angle(p, "custom_fajr", 18);
         cfg.customIsha = angle(p, "custom_isha", 17);
-        for (int i = 0; i < 5; i++) cfg.tune[i] = tune(c, i);
+        for (int i = 0; i < 5; i++) {
+            // Fine-tuning replaces the authority's printed minutes rather than stacking:
+            // anyone who typed +5 for Maghrib by hand would otherwise now get ten.
+            int own = tune(c, i);
+            cfg.tune[i] = own != 0 || auto == null ? own : auto.offset[i];
+        }
         return cfg;
     }
 
@@ -339,7 +372,7 @@ public class Scheduler {
     static String fmt(Context c, long t) {
         DateFormat f = DateFormat.getTimeInstance(DateFormat.SHORT);
         f.setTimeZone(zone(c));
-        return f.format(new Date(t));
+        return f.format(new Date(PrayerCalc.displayMinute(t)));
     }
 
     static int dayKey(Context c, long t) {

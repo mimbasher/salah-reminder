@@ -30,6 +30,8 @@ import java.util.Map;
 /** Pick a city from the bundled list: tap a country, then a city. No typing, no internet. */
 public class CityPickerActivity extends ThemedActivity {
     static final String EX_NAME = "name", EX_LAT = "lat", EX_LNG = "lng", EX_TZ = "tz";
+    /** The city's country, which chooses the calculation method. See {@link Region}. */
+    static final String EX_CC = "cc";
     private static final String ST_COUNTRY = "country", ST_QUERY = "query";
 
     /** The whole list, parsed once and kept for as long as the process lives. */
@@ -260,7 +262,8 @@ public class CityPickerActivity extends ThemedActivity {
                 .putExtra(EX_NAME, place)
                 .putExtra(EX_LAT, lats[i])
                 .putExtra(EX_LNG, lngs[i])
-                .putExtra(EX_TZ, zones[i]));
+                .putExtra(EX_TZ, zones[i])
+                .putExtra(EX_CC, cc[i]));
         finish();
     }
 

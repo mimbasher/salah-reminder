@@ -19,11 +19,12 @@ And the reminder that stays in the notification panel until you confirm:
 ## What it does
 
 - **Prayer times on your phone** — computed from the sun's position, no internet needed
-  once your location is set. Seventeen calculation methods, standard or Hanafi Asr, and your
-  own Fajr and Isha angles if your authority publishes them.
+  once your location is set. The method follows the country your location is in, so the times
+  are your authority's from the first launch; seventeen methods, standard or Hanafi Asr and
+  your own Fajr and Isha angles are all there for anyone whose mosque differs.
 - **Times that match your mosque** — nudge each prayer a minute at a time until the app
-  agrees with the timetable on the wall. Published tables round up to the whole minute, and
-  so does this: a prayer is never shown before it has come in.
+  agrees with the timetable on the wall. Times are shown to the nearest minute, the way the
+  printed tables and the other apps round them, while the alarm waits for the exact instant.
 - **Pick your city from a list** — 34,000 cities are bundled with the app. Tap your country,
   tap your city, done. No typing and no internet; GPS and coordinates still work too. Each
   city carries its own time zone, so Makkah's times stay Makkah's even when your phone is
@@ -71,16 +72,21 @@ button.
 
 ## How accurate is it?
 
-The astronomy is checked against an independent high-precision solar-position implementation
-and against published timetables; every time agrees to within a minute. Where a method's own
-authority prints extra minutes of its own on top of the astronomy — *temkin* in Turkey, for
-instance — the settings screen says so, and the fine-tuning rows are how you match it.
+The astronomy is checked against an independent implementation of the same method in twelve
+cities on six continents at four points in the year. Fajr, Dhuhr, Maghrib and Isha land on the
+reference minute in every one of those cases. Asr can sit two minutes off at high latitudes in
+late autumn, where the sun is so low that a fraction of an arcminute of solar position moves it
+by whole minutes.
 
-Two conventions worth knowing:
+Where an authority prints extra minutes on top of the astronomy — *temkin* in Turkey, Jordan
+holding Maghrib five minutes past sunset — the country's own figures are applied, and
+fine-tuning a prayer replaces them with yours. The app ignores elevation, which is the other
+couple of minutes between it and a table computed for a city on a plateau.
 
-- Prayer times round **up** to the whole minute, never down. A Maghrib at 17:58:35 is shown
-  as 17:59, because 17:58 would be a time that has not come.
-- Sunrise rounds **down**, for the same reason in reverse: it ends Fajr.
+One convention worth knowing: a prayer is kept internally as the exact instant it begins,
+and screens show the **nearest** minute to it, so a Maghrib at 17:58:35 reads 17:59 — which is
+how the printed tables and the other apps round it. The alarm is set from the instant itself,
+so the adhan never calls a prayer before it has come in.
 
 ## Install
 
@@ -98,7 +104,8 @@ always gives the newest version.
 
 1. Open the app and allow notifications.
 2. Tap **⚙ Settings → Search** your city (or **Use my current location**).
-3. Choose your **method** and **Asr** school if the defaults aren't yours.
+3. The **method** already follows your country — change it, or your **Asr** school, only if
+   your mosque follows a different authority.
 4. **Adhan sound → Choose a file** → pick your adhan, then **▶ Test** to hear it.
 5. Pick the **heads-up** and **repeat** minutes.
 6. Tap **Allow background running** — this matters on Samsung, Xiaomi, Oppo and Huawei,

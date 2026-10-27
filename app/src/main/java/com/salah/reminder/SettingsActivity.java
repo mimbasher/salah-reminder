@@ -103,10 +103,19 @@ public class SettingsActivity extends ThemedActivity {
         root.addView(Ui.sectionTitle(this, "Calculation"));
         LinearLayout calc = Ui.card(this);
         calc.addView(fieldLabel("Method"));
-        int method = Math.min(Math.max(0, prefs().getInt("method", 0)), PrayerCalc.METHODS.length - 1);
-        calc.addView(wrapField(dropdown(PrayerCalc.METHODS, method, i -> {
-            prefs().edit().putInt("method", i).apply();
-            reschedule("Method updated");
+        // Automatic goes in front of the authorities, not among them, so the method indices
+        // older versions stored keep their meaning.
+        String[] methodItems = new String[PrayerCalc.METHODS.length + 1];
+        methodItems[0] = "Automatic \u2014 my country's authority";
+        System.arraycopy(PrayerCalc.METHODS, 0, methodItems, 1, PrayerCalc.METHODS.length);
+        int chosen = Scheduler.methodIsAutomatic(this) ? 0
+                : Math.min(Math.max(0, prefs().getInt("method", 0)),
+                        PrayerCalc.METHODS.length - 1) + 1;
+        calc.addView(wrapField(dropdown(methodItems, chosen, i -> {
+            SharedPreferences.Editor e = prefs().edit().putBoolean("method_auto", i == 0);
+            if (i > 0) e.putInt("method", i - 1);
+            e.apply();
+            reschedule(i == 0 ? "Method follows your country" : "Method updated");
             refresh();                               // each method has its own note to show
         })), Ui.lp(-1, -2));
         methodHint = Ui.text(this, "", 12.5f, Ui.MUTED, null);
@@ -521,9 +530,12 @@ public class SettingsActivity extends ThemedActivity {
                             toast("Angles run from about 12 to 20 degrees");
                             return;
                         }
+                        // Angles of your own switch automatic off, or the country would go
+                        // on overruling them.
                         prefs().edit()
                                 .putString("custom_fajr", String.valueOf(f))
                                 .putString("custom_isha", String.valueOf(i))
+                                .putBoolean("method_auto", false)
                                 .putInt("method", PrayerCalc.CUSTOM).apply();
                         recreate();                  // the method dropdown has to move with it
                     } catch (Exception e) {
@@ -555,13 +567,22 @@ public class SettingsActivity extends ThemedActivity {
                         + ", the clock of that place" : "")
                 : "No city set yet");
 
-        int mi = Math.min(Math.max(0, p.getInt("method", 0)), PrayerCalc.METHODS.length - 1);
-        String note = PrayerCalc.METHOD_NOTES[mi];
-        methodHint.setText(mi == PrayerCalc.CUSTOM
-                ? "Fajr " + p.getString("custom_fajr", "18") + "\u00b0, Isha "
-                        + p.getString("custom_isha", "17") + "\u00b0"
-                : note != null ? note
-                : "Pick the authority your mosque follows \u2014 it sets the Fajr and Isha angles.");
+        Region.Profile auto = Scheduler.profile(this);
+        if (auto != null) {
+            String hint = Region.describe(Scheduler.country(this), auto);
+            if (auto.hasOffsets()) {
+                hint += " Fine-tuning a prayer below replaces those minutes with yours.";
+            }
+            methodHint.setText(hint);
+        } else {
+            int mi = Math.min(Math.max(0, p.getInt("method", 0)), PrayerCalc.METHODS.length - 1);
+            String note = PrayerCalc.METHOD_NOTES[mi];
+            methodHint.setText(mi == PrayerCalc.CUSTOM
+                    ? "Fajr " + p.getString("custom_fajr", "18") + "\u00b0, Isha "
+                            + p.getString("custom_isha", "17") + "\u00b0"
+                    : note != null ? note
+                    : "Pick the authority your mosque follows \u2014 it sets the Fajr and Isha angles.");
+        }
         paintTune();
 
         String name = p.getString("adhan_name", null);
@@ -691,13 +712,18 @@ public class SettingsActivity extends ThemedActivity {
     /**
      * @param tz the chosen city's own zone, or null to follow the phone — which is what GPS
      *           means: you are standing in the place, so its clock is already your clock.
+     * @param cc the ISO country code, which chooses the calculation method while it is on
+     *           automatic, or null to work it out from the coordinates instead.
      */
-    private void setPlace(String name, double lat, double lng, String tz) {
+    private void setPlace(String name, double lat, double lng, String tz, String cc) {
         SharedPreferences.Editor e = prefs().edit()
                 .putString("lat", String.format(Locale.US, "%.4f", lat))
                 .putString("lng", String.format(Locale.US, "%.4f", lng))
                 .putString("place", name == null ? "Selected location" : name);
         if (tz == null) e.remove("tz"); else e.putString("tz", tz);
+        // Removing it is not losing it: Scheduler.country() fills a missing one from the
+        // nearest bundled city.
+        if (cc == null || cc.isEmpty()) e.remove("cc"); else e.putString("cc", cc);
         e.apply();
         Scheduler.scheduleNext(this, System.currentTimeMillis());
         Scheduler.scheduleQiyam(this);
@@ -760,14 +786,20 @@ public class SettingsActivity extends ThemedActivity {
         double lat = l.getLatitude(), lng = l.getLongitude();
         new Thread(() -> {
             String name = "My location";
+            String cc = null;
             try {
                 if (Geocoder.isPresent()) {
                     List<Address> r = new Geocoder(this, Locale.getDefault()).getFromLocation(lat, lng, 1);
-                    if (r != null && !r.isEmpty()) name = placeName(r.get(0));
+                    if (r != null && !r.isEmpty()) {
+                        name = placeName(r.get(0));
+                        cc = r.get(0).getCountryCode();
+                    }
                 }
-            } catch (Exception ignored) { }
-            final String n = name;
-            runOnUiThread(() -> setPlace(n, lat, lng, null));
+            } catch (Exception ignored) {
+                // No geocoder reachable: the country comes from the city list instead.
+            }
+            final String n = name, country = cc;
+            runOnUiThread(() -> setPlace(n, lat, lng, null, country));
         }).start();
     }
 
@@ -802,7 +834,8 @@ public class SettingsActivity extends ThemedActivity {
                 setPlace(data.getStringExtra(CityPickerActivity.EX_NAME),
                         data.getDoubleExtra(CityPickerActivity.EX_LAT, 0),
                         data.getDoubleExtra(CityPickerActivity.EX_LNG, 0),
-                        data.getStringExtra(CityPickerActivity.EX_TZ));
+                        data.getStringExtra(CityPickerActivity.EX_TZ),
+                        data.getStringExtra(CityPickerActivity.EX_CC));
             }
             return;
         }

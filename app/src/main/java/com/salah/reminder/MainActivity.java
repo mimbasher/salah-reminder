@@ -246,10 +246,11 @@ public class MainActivity extends ThemedActivity {
         paintWarning();
         paintUpdate();
 
+        // What the times were worked out with, not what is stored: on automatic the country
+        // chose them.
         String[] madhab = {"Standard Asr", "Hanafi Asr"};
-        int mi = Math.min(Math.max(0, p.getInt("method", 0)), PrayerCalc.METHODS.length - 1);
-        footer.setText(PrayerCalc.METHODS[mi] + "  ·  "
-                + madhab[p.getBoolean("hanafi", false) ? 1 : 0]);
+        PrayerCalc.Config cfg = Scheduler.config(this);
+        footer.setText(PrayerCalc.METHODS[cfg.method] + "  ·  " + madhab[cfg.hanafi ? 1 : 0]);
     }
 
     private void paintEmpty() {
