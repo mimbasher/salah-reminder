@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build and run Salah Reminder on a real phone, without Android Studio.
 #
-#   ./scripts/dev.sh setup      # one-off: fetch JDK 17, Gradle and the Android SDK (~450 MB)
+#   ./scripts/dev.sh setup      # one-off: fetch JDK 21, Gradle and the Android SDK (~450 MB)
 #   ./scripts/dev.sh emulator   # open a phone window on this computer (first run downloads ~1.5 GB)
 #   ./scripts/dev.sh install    # build, then install on the emulator or a plugged-in phone
 #   ./scripts/dev.sh build      # just build the APK
@@ -36,14 +36,14 @@ setup() {
   cd "$TC/dl"
 
   if [ ! -x "$TC/jdk/bin/java" ]; then
-    fetch "https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse" jdk17.tar.gz
-    mkdir -p "$TC/jdk" && tar xzf jdk17.tar.gz -C "$TC/jdk" --strip-components=1
+    fetch "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" jdk21.tar.gz
+    mkdir -p "$TC/jdk" && tar xzf jdk21.tar.gz -C "$TC/jdk" --strip-components=1
   fi
 
   if [ ! -x "$GRADLE" ]; then
-    fetch "https://services.gradle.org/distributions/gradle-8.13-bin.zip" gradle.zip
+    fetch "https://services.gradle.org/distributions/gradle-9.6.0-bin.zip" gradle.zip
     rm -rf "$TC/gradle" && unzip -q gradle.zip -d "$TC/tmp-gradle"
-    mv "$TC/tmp-gradle/gradle-8.13" "$TC/gradle" && rmdir "$TC/tmp-gradle"
+    mv "$TC/tmp-gradle/gradle-9.6.0" "$TC/gradle" && rmdir "$TC/tmp-gradle"
   fi
 
   if [ ! -f "$SDK/platforms/android-36/android.jar" ]; then
@@ -53,7 +53,7 @@ setup() {
     mv "$TC/dl/p36/"android-36* "$SDK/platforms/android-36"
   fi
 
-  # Two sets: 36 matches compileSdk, 35 is the version AGP 8.13 reaches for by default.
+  # Two sets: 36 matches compileSdk, 35 is the version AGP reaches for by default.
   if [ ! -x "$SDK/build-tools/36.0.0/aapt2" ]; then
     fetch "https://dl.google.com/android/repository/build-tools_r36_linux.zip" buildtools36.zip
     unzip -q -o buildtools36.zip -d "$TC/dl/bt36"

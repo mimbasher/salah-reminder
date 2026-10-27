@@ -144,7 +144,7 @@ not install over a release build.
 
 ## Running it locally (no Android Studio)
 
-`scripts/dev.sh` fetches its own JDK 17, Gradle and Android SDK into `.toolchain/`
+`scripts/dev.sh` fetches its own JDK 21, Gradle and Android SDK into `.toolchain/`
 (git-ignored, nothing installed system-wide) and installs straight onto a plugged-in phone:
 
 ```sh
@@ -172,8 +172,8 @@ gradle assembleGithubDebug
 gradle testGithubDebugUnitTest   # PrayerCalc's unit tests, also run on every CI build
 ```
 
-There is no Gradle wrapper on purpose: CI pins Gradle 8.13 and `scripts/dev.sh` fetches its own
-8.13 plus a JDK 17, so a committed `gradlew` would only add a third version to disagree with.
+There is no Gradle wrapper on purpose: CI pins Gradle 9.6.0 and `scripts/dev.sh` fetches its own
+9.6.0 plus a JDK 21, so a committed `gradlew` would only add a third version to disagree with.
 
 No third-party libraries — the whole app is the Android framework plus the files in
 `app/src/main/java/com/salah/reminder/`:

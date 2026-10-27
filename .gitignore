@@ -14,7 +14,7 @@ local.properties
 .toolchain/
 
 # Gradle wrapper: unused here, and it would pin a third Gradle version.
-# CI pins 8.13 via setup-gradle; scripts/dev.sh fetches its own 8.13 and a JDK 17.
+# CI pins 9.6.0 via setup-gradle; scripts/dev.sh fetches its own 9.6.0 and a JDK 21.
 gradlew
 gradlew.bat
 gradle/wrapper/
