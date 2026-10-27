@@ -176,7 +176,7 @@ With your own SDK already installed, plain Gradle works as well:
 ```sh
 echo "sdk.dir=/path/to/android-sdk" > local.properties
 gradle assembleGithubDebug
-gradle testGithubDebugUnitTest   # PrayerCalc's unit tests, also run on every CI build
+gradle testGithubDebugUnitTest   # the unit tests, also run on every CI build
 ```
 
 There is no Gradle wrapper on purpose: CI pins Gradle 9.6.0 and `scripts/dev.sh` fetches its own
@@ -193,6 +193,7 @@ No third-party libraries — the whole app is the Android framework plus the fil
 | `Ui` | colours, type and the shared view builders |
 | `ThemedActivity` | applies the light/dark choice before a screen is built |
 | `PrayerCalc` | astronomy: prayer times and Qibla bearing |
+| `Region` | which authority's timetable each country keeps |
 | `Scheduler` | alarms, state and notifications |
 | `AdhanService` | plays the adhan |
 | `AlarmReceiver` / `BootReceiver` | alarm delivery and restoring after reboot |
@@ -200,12 +201,8 @@ No third-party libraries — the whole app is the Android framework plus the fil
 | `Updater` | checks GitHub releases, downloads and installs — one copy per flavour, the Play one does nothing |
 | `HijriDate` | Hijri date from the platform calendar |
 
-Tests live in `app/src/test/` and cover `PrayerCalc`: prayer-time ordering, Dhuhr at solar noon,
-Umm al-Qura's fixed 90-minute Isha, a later Hanafi Asr, Jafari's delayed Maghrib, daylight-saving
-handling, rounding against a published timetable, per-prayer adjustment, times that do not move
-when the phone's own zone does, the short-night rules, Qibla bearings checked against exact
-geometry, and every month at Tromsø, Longyearbyen, Alert and McMurdo so the polar fallbacks keep
-working.
+Tests live in `app/src/test/`: `PrayerCalcTest` for the astronomy, the rounding rule and the
+polar fallbacks, `RegionTest` for the country table. The test names say what each one holds.
 
 City data: [GeoNames](https://www.geonames.org/) (`cities15000`, places over 15,000 people),
 licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), bundled as
