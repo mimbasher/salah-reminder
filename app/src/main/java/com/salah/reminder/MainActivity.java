@@ -42,6 +42,11 @@ public class MainActivity extends ThemedActivity {
     private TextView warnText, footer, updateText;
     private View heroAction;
 
+    /** Hero beside the list, instead of above it; decided once, from the window's width. */
+    private boolean twoPane;
+    /** The next prayer's name is the biggest thing on the screen, so it grows with it. */
+    private float heroSp;
+
     /** What the screen currently shows; while it is unchanged only the countdown is redrawn. */
     private String shown = "";
 
@@ -57,6 +62,7 @@ public class MainActivity extends ThemedActivity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         Scheduler.ensureChannels(this);
+        heroSp = Ui.expanded(this) ? 42 : Ui.wide(this) ? 38 : 34;
         buildUi();
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -100,14 +106,32 @@ public class MainActivity extends ThemedActivity {
     // ---------------- layout ----------------
 
     private void buildUi() {
+        // On a phone held upright everything is one column. Give it more width than that —
+        // a phone on its side, an open foldable, a tablet, half a desktop screen — and the
+        // hero moves beside the list instead of pushing it off the bottom of the screen.
+        twoPane = Ui.wide(this);
+
         ScrollView sv = new ScrollView(this);
+        sv.setId(R.id.scroll);                 // so the scroll position survives a rotation
         sv.setBackgroundColor(Ui.BG);
         sv.setFillViewport(true);
         LinearLayout root = Ui.column(this);
-        root.setPadding(dp(18), dp(30), dp(18), dp(28));
-        sv.addView(root, Ui.contentLp(this, -1));
+        int g = Ui.gutter(this);
+        root.setPadding(g, dp(twoPane ? 20 : 30), g, dp(28));
+        sv.addView(root, Ui.contentLp(this, -1, twoPane ? Ui.MAX_WIDE_DP : Ui.MAX_CONTENT_DP));
         setContentView(sv);
         Ui.fitSystemBars(sv);
+
+        // Side by side when there is room, otherwise both halves are the one column.
+        LinearLayout panes = twoPane ? Ui.rowOf(this) : null;
+        LinearLayout left = twoPane ? Ui.column(this) : root;
+        LinearLayout right = twoPane ? Ui.column(this) : root;
+        if (twoPane) {
+            panes.setGravity(Gravity.TOP);
+            panes.addView(left, Ui.lp(0, -2, 1f));
+            panes.addView(new View(this), Ui.lp(dp(20), 1));
+            panes.addView(right, Ui.lp(0, -2, 1.15f));
+        }
 
         // header
         LinearLayout head = Ui.rowOf(this);
@@ -130,14 +154,15 @@ public class MainActivity extends ThemedActivity {
         LinearLayout heroCol = Ui.column(this);
         heroLabel = Ui.overline(this, "Next prayer", Ui.ON_HERO_2);
         heroCol.addView(heroLabel);
-        heroName = Ui.text(this, "—", 34, Ui.ON_HERO, Ui.LIGHT);
+        heroName = Ui.text(this, "—", heroSp, Ui.ON_HERO, Ui.LIGHT);
         heroName.setPadding(0, dp(4), 0, 0);
         heroCol.addView(heroName);
         heroTime = Ui.text(this, "", 16, Ui.ON_HERO_2, Ui.MEDIUM);
         heroCol.addView(heroTime);
         heroRow.addView(heroCol, Ui.lp(0, -2, 1));
         ring = new RingView(this);
-        heroRow.addView(ring, Ui.lp(dp(104), dp(104)));
+        int ringSize = dp(Ui.expanded(this) ? 132 : twoPane ? 120 : 104);
+        heroRow.addView(ring, Ui.lp(ringSize, ringSize));
         hero.addView(heroRow, Ui.lp(-1, -2));
 
         placeView = Ui.text(this, "", 12.5f, Ui.ON_HERO_2, null);
@@ -146,7 +171,7 @@ public class MainActivity extends ThemedActivity {
 
         heroAction = Ui.primary(this, "Set your location", v -> open(SettingsActivity.class));
         hero.addView(heroAction, Ui.stacked(this, 14));
-        root.addView(hero, Ui.stacked(this, 18));
+        left.addView(hero, Ui.stacked(this, twoPane ? 14 : 18));
 
         // "an update is ready" banner
         updateCard = Ui.column(this);
@@ -160,7 +185,7 @@ public class MainActivity extends ThemedActivity {
         Ui.clickable(updateCard,
                 Ui.outlined(Ui.alpha(Ui.ACCENT, 0x1F), Ui.alpha(Ui.ACCENT, 0x66), this, 16),
                 v -> Updater.install(this));
-        root.addView(updateCard, Ui.stacked(this, 12));
+        left.addView(updateCard, Ui.stacked(this, 12));
 
         // reliability warning (hidden unless something is actually wrong)
         warnCard = Ui.column(this);
@@ -169,12 +194,12 @@ public class MainActivity extends ThemedActivity {
         warnText = Ui.text(this, "", 13, Ui.WARN_TEXT, null);
         warnCard.addView(warnText);
         warnCard.setVisibility(View.GONE);
-        root.addView(warnCard, Ui.stacked(this, 12));
+        left.addView(warnCard, Ui.stacked(this, 12));
 
-        root.addView(Ui.sectionTitle(this, "Today"));
+        right.addView(Ui.sectionTitle(this, "Today"));
         listCard = Ui.card(this);
         listCard.setPadding(dp(8), dp(8), dp(8), dp(8));
-        root.addView(listCard, Ui.lp(-1, -2));
+        right.addView(listCard, Ui.lp(-1, -2));
 
         LinearLayout actions = Ui.rowOf(this);
         TextView qibla = Ui.secondary(this, "🧭  Qibla", v -> open(QiblaActivity.class));
@@ -183,12 +208,17 @@ public class MainActivity extends ThemedActivity {
         View gap = new View(this);
         actions.addView(gap, Ui.lp(dp(10), 1));
         actions.addView(settings, Ui.lp(0, -2, 1));
-        root.addView(actions, Ui.stacked(this, 16));
+        // Side by side, these sit under the hero: the list column is longer, and a button
+        // pinned to the bottom of a half-empty column is a long way from the thumb.
+        LinearLayout below = twoPane ? left : right;
+        below.addView(actions, Ui.stacked(this, 16));
 
         footer = Ui.text(this, "", 11.5f, Ui.MUTED, null);
         footer.setGravity(Gravity.CENTER);
         footer.setPadding(0, dp(16), 0, 0);
-        root.addView(footer, Ui.lp(-1, -2));
+        below.addView(footer, Ui.lp(-1, -2));
+
+        if (twoPane) root.addView(panes, Ui.stacked(this, 6));
     }
 
     private void open(Class<?> cls) {
@@ -238,7 +268,7 @@ public class MainActivity extends ThemedActivity {
                 ? place + "  ·  " + Scheduler.zoneLabel(this) : place);
 
         heroLabel.setText("NEXT PRAYER");
-        heroName.setTextSize(34);
+        heroName.setTextSize(heroSp);
         heroName.setText(PrayerCalc.NAMES[ni]);
         heroTime.setText(Scheduler.fmt(this, nt) + (sameDay(nt, now) ? "" : "  ·  tomorrow"));
 
@@ -256,7 +286,7 @@ public class MainActivity extends ThemedActivity {
     private void paintEmpty() {
         heroLabel.setText("WELCOME");
         heroName.setText("As-salamu alaykum");
-        heroName.setTextSize(24);
+        heroName.setTextSize(heroSp * 0.7f);
         heroTime.setText("Tell me where you are and I'll keep your times right.");
         placeView.setVisibility(View.GONE);
         ring.setVisibility(View.GONE);

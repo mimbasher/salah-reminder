@@ -73,10 +73,14 @@ public class SettingsActivity extends ThemedActivity {
 
     private void buildUi() {
         ScrollView sv = new ScrollView(this);
+        sv.setId(R.id.scroll);                 // keeps your place through a rotation or a fold
         sv.setBackgroundColor(Ui.BG);
         LinearLayout root = Ui.column(this);
-        root.setPadding(dp(18), dp(16), dp(18), dp(36));
-        sv.addView(root, Ui.contentLp(this, -2));
+        int g = Ui.gutter(this);
+        root.setPadding(g, dp(16), g, dp(36));
+        // A tablet reads these cards in two columns; everything narrower keeps the one column.
+        sv.addView(root, Ui.contentLp(this, -2,
+                Ui.expanded(this) ? Ui.MAX_WIDE_DP : Ui.MAX_CONTENT_DP));
         setContentView(sv);
         Ui.fitSystemBars(sv);
 
@@ -87,8 +91,12 @@ public class SettingsActivity extends ThemedActivity {
         head.addView(title);
         root.addView(head, Ui.lp(-1, -2));
 
+        // Every section below goes in here, so the columns can be dealt out at the end.
+        LinearLayout body = Ui.column(this);
+        root.addView(body, Ui.lp(-1, -2));
+
         // ---- location ----
-        root.addView(Ui.sectionTitle(this, "Where you are"));
+        body.addView(Ui.sectionTitle(this, "Where you are"));
         LinearLayout loc = Ui.card(this);
         placeView = Ui.text(this, "", 15, Ui.TEXT, Ui.MEDIUM);
         loc.addView(placeView, Ui.lp(-1, -2));
@@ -97,10 +105,10 @@ public class SettingsActivity extends ThemedActivity {
                 Ui.stacked(this, 14));
         loc.addView(Ui.secondary(this, "Use my current location", v -> askLocation()),
                 Ui.stacked(this, 10));
-        root.addView(loc, Ui.lp(-1, -2));
+        body.addView(loc, Ui.lp(-1, -2));
 
         // ---- calculation ----
-        root.addView(Ui.sectionTitle(this, "Calculation"));
+        body.addView(Ui.sectionTitle(this, "Calculation"));
         LinearLayout calc = Ui.card(this);
         calc.addView(fieldLabel("Method"));
         // Automatic goes in front of the authorities, not among them, so the method indices
@@ -142,10 +150,10 @@ public class SettingsActivity extends ThemedActivity {
                 "What to do where the sky never darkens enough for Fajr and Isha. Only "
                         + "matters above about 48\u00b0 of latitude.", 11.5f, Ui.MUTED, null),
                 Ui.stacked(this, 8));
-        root.addView(calc, Ui.lp(-1, -2));
+        body.addView(calc, Ui.lp(-1, -2));
 
         // ---- fine-tuning ----
-        root.addView(Ui.sectionTitle(this, "Fine-tune the times"));
+        body.addView(Ui.sectionTitle(this, "Fine-tune the times"));
         LinearLayout tuneCard = Ui.card(this);
         tuneCard.addView(Ui.text(this,
                 "Mosques add a minute or two of their own. Nudge each prayer until the app "
@@ -163,10 +171,10 @@ public class SettingsActivity extends ThemedActivity {
             reschedule("Adjustments cleared");
             refresh();
         }), Ui.stacked(this, 12));
-        root.addView(tuneCard, Ui.lp(-1, -2));
+        body.addView(tuneCard, Ui.lp(-1, -2));
 
         // ---- adhan ----
-        root.addView(Ui.sectionTitle(this, "Adhan sound"));
+        body.addView(Ui.sectionTitle(this, "Adhan sound"));
         LinearLayout ad = Ui.card(this);
         adhanSwitch = switchRow("Play the adhan at prayer time", prefs().getBoolean("adhan_on", true),
                 on -> prefs().edit().putBoolean("adhan_on", on).apply());
@@ -190,10 +198,10 @@ public class SettingsActivity extends ThemedActivity {
         testRow.addView(spacer(), Ui.lp(dp(8), 1));
         testRow.addView(Ui.secondary(this, "Stop", v -> AdhanService.stop(this)), Ui.lp(0, -2, 1));
         ad.addView(testRow, Ui.stacked(this, 8));
-        root.addView(ad, Ui.lp(-1, -2));
+        body.addView(ad, Ui.lp(-1, -2));
 
         // ---- reminders ----
-        root.addView(Ui.sectionTitle(this, "Reminders"));
+        body.addView(Ui.sectionTitle(this, "Reminders"));
         LinearLayout rem = Ui.card(this);
         rem.addView(fieldLabel("Heads-up before the adhan"));
         preRow = Ui.rowOf(this);
@@ -202,10 +210,10 @@ public class SettingsActivity extends ThemedActivity {
         rem.addView(fieldLabel("Repeat until I tap Prayed"));
         nagRow = Ui.rowOf(this);
         rem.addView(scrollRow(nagRow), Ui.lp(-1, -2));
-        root.addView(rem, Ui.lp(-1, -2));
+        body.addView(rem, Ui.lp(-1, -2));
 
         // ---- dhuha ----
-        root.addView(Ui.sectionTitle(this, "Dhuha"));
+        body.addView(Ui.sectionTitle(this, "Dhuha"));
         LinearLayout dhuha = Ui.card(this);
         dhuhaSwitch = switchRow("Remind me for the forenoon prayer",
                 prefs().getInt("dhuha", 0) > 0, this::setDhuhaEnabled);
@@ -228,10 +236,10 @@ public class SettingsActivity extends ThemedActivity {
         dhuhaOpts.addView(dhuhaHint, Ui.lp(-1, -2));
         dhuhaOptions = dhuhaOpts;
         dhuha.addView(dhuhaOpts, Ui.lp(-1, -2));
-        root.addView(dhuha, Ui.lp(-1, -2));
+        body.addView(dhuha, Ui.lp(-1, -2));
 
         // ---- qiyam al-layl ----
-        root.addView(Ui.sectionTitle(this, "Qiyam al-Layl"));
+        body.addView(Ui.sectionTitle(this, "Qiyam al-Layl"));
         LinearLayout qiyam = Ui.card(this);
         qiyamSwitch = switchRow("Remind me for the night prayer",
                 prefs().getInt("qiyam", 0) > 0, this::setQiyamEnabled);
@@ -253,18 +261,18 @@ public class SettingsActivity extends ThemedActivity {
         options.addView(qiyamHint, Ui.lp(-1, -2));
         qiyamOptions = options;
         qiyam.addView(options, Ui.lp(-1, -2));
-        root.addView(qiyam, Ui.lp(-1, -2));
+        body.addView(qiyam, Ui.lp(-1, -2));
 
         // ---- appearance ----
-        root.addView(Ui.sectionTitle(this, "Appearance"));
+        body.addView(Ui.sectionTitle(this, "Appearance"));
         LinearLayout look = Ui.card(this);
         look.addView(fieldLabel("Theme"));
         themeRow = Ui.rowOf(this);
         look.addView(scrollRow(themeRow), Ui.lp(-1, -2));
-        root.addView(look, Ui.lp(-1, -2));
+        body.addView(look, Ui.lp(-1, -2));
 
         // ---- reliability ----
-        root.addView(Ui.sectionTitle(this, "Make it reliable"));
+        body.addView(Ui.sectionTitle(this, "Make it reliable"));
         LinearLayout rel = Ui.card(this);
         rel.addView(Ui.secondary(this, "Allow background running (battery)", v -> askBattery()),
                 Ui.lp(-1, -2));
@@ -287,10 +295,10 @@ public class SettingsActivity extends ThemedActivity {
             }
         }), Ui.stacked(this, 10));
         rel.addView(Ui.primary(this, "Test a full reminder now", v -> testNow()), Ui.stacked(this, 14));
-        root.addView(rel, Ui.lp(-1, -2));
+        body.addView(rel, Ui.lp(-1, -2));
 
         // ---- app & updates ----
-        root.addView(Ui.sectionTitle(this, "App"));
+        body.addView(Ui.sectionTitle(this, "App"));
         LinearLayout app = Ui.card(this);
         app.addView(Ui.text(this, "Version " + Updater.installedVersion(this), 15, Ui.TEXT, Ui.MEDIUM),
                 Ui.lp(-1, -2));
@@ -311,14 +319,16 @@ public class SettingsActivity extends ThemedActivity {
         app.addView(Ui.secondary(this, Updater.SELF_UPDATES ? "Open the releases page"
                 : "Open the Play Store page", v -> Updater.openReleasesPage(this)),
                 Ui.stacked(this, 10));
-        root.addView(app, Ui.lp(-1, -2));
+        body.addView(app, Ui.lp(-1, -2));
 
         TextView about = Ui.text(this,
                 "Times are computed on your phone from the sun's position, so no internet is "
                         + "needed once your city is set.", 11.5f, Ui.MUTED, null);
         about.setGravity(Gravity.CENTER);
         about.setPadding(dp(8), dp(22), dp(8), 0);
-        root.addView(about, Ui.lp(-1, -2));
+
+        Ui.columnise(this, body);
+        root.addView(about, Ui.lp(-1, -2));   // one line under both columns
 
         refresh();
     }

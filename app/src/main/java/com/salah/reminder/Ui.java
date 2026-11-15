@@ -160,9 +160,13 @@ final class Ui {
         return t;
     }
 
+    /** Marks the start of a section, so {@link #columnise} knows where it may cut. */
+    static final String SECTION = "section";
+
     static TextView sectionTitle(Context c, String s) {
         TextView t = overline(c, s, MUTED);
         t.setPadding(dp(c, 4), dp(c, 22), 0, dp(c, 8));
+        t.setTag(SECTION);
         return t;
     }
 
@@ -197,8 +201,48 @@ final class Ui {
         return new LinearLayout.LayoutParams(w, h, weight);
     }
 
-    /** The widest a column of content gets. Past this a screen centres it instead of stretching. */
+    // ---------------- how much screen there is ----------------
+
+    /**
+     * Android's own width classes, in dp of *window* — not of display, which is a different
+     * number in split screen, in a desktop window, and on a foldable the moment it opens.
+     * Under 600 is a phone held upright; 600 and over is a phone on its side, a small tablet
+     * or an open foldable; 840 and over is a large tablet.
+     */
+    static final int MEDIUM_DP = 600, EXPANDED_DP = 840;
+
+    static int widthDp(Context c) {
+        return c.getResources().getConfiguration().screenWidthDp;
+    }
+
+    static int heightDp(Context c) {
+        return c.getResources().getConfiguration().screenHeightDp;
+    }
+
+    /** Room for two columns side by side. */
+    static boolean wide(Context c) { return widthDp(c) >= MEDIUM_DP; }
+
+    /** Room for two columns of settings cards. */
+    static boolean expanded(Context c) { return widthDp(c) >= EXPANDED_DP; }
+
+    /**
+     * Short enough that height is what runs out first — a phone on its side, or a tall app
+     * squeezed into the top half of a split screen. Such a screen wants its content spread
+     * sideways, not stacked.
+     */
+    static boolean shortScreen(Context c) { return heightDp(c) < 480; }
+
+    /** The widest a single column of text and rows gets before it reads badly. */
     static final float MAX_CONTENT_DP = 480;
+
+    /** Two columns need about twice that, plus the gap between them. */
+    static final float MAX_WIDE_DP = 1000;
+
+    /** Side padding: tighter on a small phone, roomier as the window grows. */
+    static int gutter(Context c) {
+        int w = widthDp(c);
+        return dp(c, w >= EXPANDED_DP ? 28 : w >= MEDIUM_DP ? 24 : w <= 360 ? 14 : 18);
+    }
 
     /**
      * Params for the single child of a full-screen container: the whole width on a phone, a
@@ -206,12 +250,51 @@ final class Ui {
      * the glyph and the time at opposite ends of the screen.
      */
     static FrameLayout.LayoutParams contentLp(Context c, int height) {
-        int max = dp(c, MAX_CONTENT_DP);
-        boolean wide = c.getResources().getDisplayMetrics().widthPixels > max;
+        return contentLp(c, height, MAX_CONTENT_DP);
+    }
+
+    /** As above, for a screen that lays itself out in two columns and so wants more room. */
+    static FrameLayout.LayoutParams contentLp(Context c, int height, float maxDp) {
+        int max = dp(c, maxDp);
+        boolean roomToSpare = widthDp(c) > maxDp;
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
-                wide ? max : FrameLayout.LayoutParams.MATCH_PARENT, height);
+                roomToSpare ? max : FrameLayout.LayoutParams.MATCH_PARENT, height);
         p.gravity = Gravity.CENTER_HORIZONTAL;
         return p;
+    }
+
+    /**
+     * Turns one tall column of sections into two side-by-side ones when the window is wide
+     * enough to read them that way — a tablet, or an unfolded foldable. The cut is made at a
+     * section heading nearest the middle, so a heading is never parted from its card, and on
+     * anything narrower the column is left exactly as it was built.
+     *
+     * Call it once, after the sections have been added.
+     */
+    static void columnise(Context c, LinearLayout body) {
+        int n = body.getChildCount();
+        if (!expanded(c) || n < 4) return;
+
+        int half = n / 2, split = -1;
+        for (int i = 1; i < n; i++) {                      // never cut before the first section
+            if (!SECTION.equals(body.getChildAt(i).getTag())) continue;
+            if (split < 0 || Math.abs(i - half) < Math.abs(split - half)) split = i;
+        }
+        if (split <= 0) return;
+
+        View[] kids = new View[n];
+        for (int i = 0; i < n; i++) kids[i] = body.getChildAt(i);
+        body.removeAllViews();
+
+        LinearLayout left = column(c), right = column(c);
+        for (int i = 0; i < n; i++) (i < split ? left : right).addView(kids[i]);
+
+        LinearLayout row = rowOf(c);
+        row.setGravity(Gravity.TOP);
+        row.addView(left, lp(0, -2, 1));
+        row.addView(new View(c), lp(dp(c, 22), 1));
+        row.addView(right, lp(0, -2, 1));
+        body.addView(row, lp(-1, -2));
     }
 
     /** Wraps a screen whose root is set directly, so it is centred on a wide display too. */
@@ -247,9 +330,13 @@ final class Ui {
     }
 
     static FrameLayout centred(Context c, View content) {
+        return centred(c, content, MAX_CONTENT_DP);
+    }
+
+    static FrameLayout centred(Context c, View content, float maxDp) {
         FrameLayout host = new FrameLayout(c);
         host.setBackgroundColor(BG);
-        host.addView(content, contentLp(c, -1));
+        host.addView(content, contentLp(c, -1, maxDp));
         return host;
     }
 

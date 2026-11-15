@@ -13,16 +13,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
+    <!-- Every screen is built to fit the window it is given, so none of them locks the
+         orientation or refuses to be resized: landscape, a folding phone and a tablet's
+         split screen all lay out from the same code. -->
     <application
         android:allowBackup="true"
+        android:resizeableActivity="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="Salah Reminder"
         android:theme="@style/AppTheme">
 
         <activity android:name=".MainActivity" android:exported="true"
-            android:launchMode="singleTop"
-            android:screenOrientation="portrait">
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -31,16 +34,13 @@
 
         <activity android:name=".SettingsActivity" android:label="Settings" android:exported="false"
             android:parentActivityName=".MainActivity"
-            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
         <activity android:name=".CityPickerActivity" android:label="Choose your city"
             android:exported="false" android:parentActivityName=".SettingsActivity"
-            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
-        <activity android:name=".QiblaActivity" android:label="Qibla" android:exported="false"
-            android:screenOrientation="portrait" />
+        <activity android:name=".QiblaActivity" android:label="Qibla" android:exported="false" />
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
 

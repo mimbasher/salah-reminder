@@ -60,7 +60,8 @@ public class CityPickerActivity extends ThemedActivity {
         if (b != null) country = b.getString(ST_COUNTRY);
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
-        root.setPadding(dp(18), dp(16), dp(18), 0);
+        int g = Ui.gutter(this);
+        root.setPadding(g, dp(16), g, 0);
 
         LinearLayout head = Ui.rowOf(this);
         head.addView(Ui.iconButton(this, R.drawable.ic_back, "Back", v -> up()));
@@ -70,6 +71,7 @@ public class CityPickerActivity extends ThemedActivity {
         root.addView(head, Ui.lp(-1, -2));
 
         search = Ui.input(this, "Or type to search any city");
+        search.setId(R.id.search);
         root.addView(search, Ui.stacked(this, 14));
         search.addTextChangedListener(new TextWatcher() {
             @Override public void afterTextChanged(Editable e) { rebuild(); }
@@ -92,7 +94,9 @@ public class CityPickerActivity extends ThemedActivity {
         list.setOnItemClickListener((p, v, pos, id) -> tapped(rows.get(pos)));
         root.addView(list, Ui.lp(-1, 0, 1));
 
-        FrameLayout host = Ui.centred(this, root);
+        // A long list reads fine in a wide column, so a tablet gets more of one.
+        FrameLayout host = Ui.centred(this, root,
+                Ui.wide(this) ? 640 : Ui.MAX_CONTENT_DP);
         setContentView(host);
         Ui.fitSystemBars(host);
 

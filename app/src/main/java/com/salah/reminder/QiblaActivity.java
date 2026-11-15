@@ -37,15 +37,21 @@ public class QiblaActivity extends ThemedActivity implements SensorEventListener
     private double qibla;
     private CompassView compass;
     private TextView status, detail, hint;
+    private LinearLayout card;
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        // Turned sideways there is no height left to stack a dial under a card, so the two
+        // go side by side instead; the dial then gets the whole height of the screen.
+        boolean beside = Ui.wide(this);
+
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
-        root.setPadding(dp(18), dp(16), dp(18), dp(22));
+        int g = Ui.gutter(this);
+        root.setPadding(g, dp(16), g, dp(22));
 
         LinearLayout head = Ui.rowOf(this);
         head.addView(Ui.iconButton(this, R.drawable.ic_back, "Back", v -> finish()));
@@ -54,25 +60,37 @@ public class QiblaActivity extends ThemedActivity implements SensorEventListener
         head.addView(title);
         root.addView(head, Ui.lp(-1, -2));
 
-        LinearLayout card = Ui.card(this);
+        LinearLayout panes = Ui.rowOf(this);
+        LinearLayout words = beside ? Ui.column(this) : root;
+        if (beside) {
+            panes.setGravity(Gravity.CENTER_VERTICAL);
+            root.addView(panes, Ui.lp(-1, 0, 1));
+            panes.addView(words, Ui.lp(0, -2, 1));
+            panes.addView(new View(this), Ui.lp(dp(20), 1));
+        }
+
+        card = Ui.card(this);
         card.setGravity(Gravity.CENTER_HORIZONTAL);
-        status = Ui.text(this, "Looking for north…", 22, Ui.TEXT, Ui.LIGHT);
+        status = Ui.text(this, "Looking for north…", beside ? 26 : 22, Ui.TEXT, Ui.LIGHT);
         status.setGravity(Gravity.CENTER);
         card.addView(status);
         detail = Ui.text(this, "", 12.5f, Ui.MUTED, null);
         detail.setGravity(Gravity.CENTER);
         detail.setPadding(0, dp(6), 0, 0);
         card.addView(detail);
-        root.addView(card, Ui.stacked(this, 16));
+        words.addView(card, Ui.stacked(this, 16));
 
         compass = new CompassView(this);
-        root.addView(compass, Ui.lp(-1, 0, 1));
+        if (beside) panes.addView(compass, Ui.lp(0, -1, 1.1f));
+        else root.addView(compass, Ui.lp(-1, 0, 1));
 
         hint = Ui.text(this, "Hold the phone flat, away from metal and magnets.", 12, Ui.MUTED, null);
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(dp(10), dp(8), dp(10), 0);
-        root.addView(hint, Ui.lp(-1, -2));
-        FrameLayout host = Ui.centred(this, root);
+        words.addView(hint, Ui.lp(-1, -2));
+
+        FrameLayout host = Ui.centred(this, root,
+                beside ? Ui.MAX_WIDE_DP : Ui.MAX_CONTENT_DP);
         setContentView(host);
         Ui.fitSystemBars(host);
 
